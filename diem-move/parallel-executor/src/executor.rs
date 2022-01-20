@@ -21,36 +21,46 @@ use std::{
     },
 };
 
-pub struct MVHashMapView<'a, K, V> {
+pub struct MVHashMapView<'a, K, V, T, E> {
     map: &'a MVHashMap<K, V>,
     version: Version,
-    scheduler: &'a Scheduler,
-    has_unexpected_read: AtomicBool,
+    scheduler: &'a Scheduler<T, E, K>,
+    // has_unexpected_read: AtomicBool,
 }
 
-impl<'a, K: Hash + Clone + Eq, V> MVHashMapView<'a, K, V> {
-    pub fn read(&self, key: &K) -> AResult<Option<&V>> {
-        match self.map.read(key, self.version) {
-            Ok(v) => Ok(Some(v)),
-            Err(None) => Ok(None),
-            Err(Some(dep_idx)) => {
-                // Don't start execution transaction `self.version` until `dep_idx` is computed.
-                if !self.scheduler.add_dependency(self.version, dep_idx) {
-                    // dep_idx is already executed, push `self.version` to ready queue.
-                    self.scheduler.add_transaction(self.version);
-                }
-                self.has_unexpected_read.fetch_or(true, Ordering::Relaxed);
-                bail!("Read dependency is not computed, retry later")
-            }
+impl<'a, K: Hash + Clone + Eq, V: Clone, T: TransactionOutput, E: Send + Clone> MVHashMapView<'a, K, V, T, E> {
+    pub fn read(&self, key: &K) -> AResult<Option<V>> {
+        match self.map.read(key) {
+            Some(v) => Ok(Some(v)),
+            None => Ok(None),
         }
+    }
+
+    pub fn write(&self, key: &K) {
+        self.map.update_lock_table(key, self.version);
     }
 
     pub fn version(&self) -> Version {
         self.version
     }
 
-    pub fn has_unexpected_read(&self) -> bool {
-        self.has_unexpected_read.load(Ordering::Relaxed)
+    pub fn add_read_write(&self, key: &K) {
+        self.scheduler.read_write_set[self.version].write().unwrap().insert(key.clone());
+        // self.scheduler.add_read_write(&key.clone(), self.version);
+    }
+
+    pub fn can_commit(&self) -> bool {
+        for k in self.scheduler.get_read_write(self.version) {
+            match self.map.read_lock_table(&k) {
+                Some(version) => {
+                    if version < self.version {
+                        return false;
+                    }
+                }
+                None => {}
+            }
+        }
+        return true;
     }
 }
 
@@ -64,7 +74,7 @@ impl<T, E, I> ParallelTransactionExecutor<T, E, I>
 where
     T: Transaction,
     E: ExecutorTask<T = T>,
-    I: ReadWriteSetInferencer<T = T>,
+    I: ReadWriteSetInferencer,
 {
     pub fn new(inferencer: I) -> Self {
         Self {
@@ -78,156 +88,128 @@ where
         &self,
         task_initial_arguments: E::Argument,
         signature_verified_block: Vec<T>,
-    ) -> Result<Vec<E::Output>, E::Error> {
+    ) -> Result<Vec<E::Output>, E::Error> where <T as Transaction>::Value: std::clone::Clone {
         if signature_verified_block.is_empty() {
             return Ok(vec![]);
         }
         let num_txns = signature_verified_block.len();
-        let chunks_size = max(1, num_txns / self.num_cpus);
-
-        // Get the read and write dependency for each transaction.
-        let infer_result: Vec<_> = {
-            match signature_verified_block
-                .par_iter()
-                .with_min_len(chunks_size)
-                .map(|txn| self.inferencer.infer_reads_writes(txn))
-                .collect::<AResult<Vec<_>>>()
-            {
-                Ok(res) => res,
-                // Inferencer passed in by user failed to get the read/writeset of a transaction,
-                // abort parallel execution.
-                Err(_) => return Err(Error::InferencerError),
-            }
-        };
-
-        // Use write analysis result to construct placeholders.
-        let path_version_tuples: Vec<(T::Key, usize)> = infer_result
-            .par_iter()
-            .enumerate()
-            .with_min_len(chunks_size)
-            .fold(Vec::new, |mut acc, (idx, accesses)| {
-                acc.extend(
-                    accesses
-                        .keys_written
-                        .clone()
-                        .into_iter()
-                        .map(|ap| (ap, idx)),
-                );
-                acc
-            })
-            .flatten()
-            .collect();
-
-        let (versioned_data_cache, max_dependency_level) =
-            MVHashMap::new_from_parallel(path_version_tuples);
-
-        if max_dependency_level == 0 {
-            return Err(Error::InferencerError);
-        }
 
         let outcomes = OutcomeArray::new(num_txns);
 
         let scheduler = Arc::new(Scheduler::new(num_txns));
+        let shared_data = Arc::new(MVHashMap::new());
+        let compute_cpus = min(1 + (num_txns / 50), self.num_cpus - 1); // Ensure we have at least 50 tx per thread.
+        println!(
+            "Number of threads: {}",
+            compute_cpus
+        );
 
-        scope(|s| {
-            // How many threads to use?
-            let compute_cpus = min(1 + (num_txns / 50), self.num_cpus - 1); // Ensure we have at least 50 tx per thread.
-            let compute_cpus = min(num_txns / max_dependency_level, compute_cpus); // Ensure we do not higher rate of conflict than concurrency.
+        while !scheduler.finish() {
+            println!(
+                "Batch size: {}",
+                scheduler.batch_size()
+            );
+            // Initialize the lock table to be empty
+            shared_data.init_lock_table();
+            // Initialize the execution marker to be 0
+            scheduler.init_marker();
 
-            for _ in 0..(compute_cpus) {
-                s.spawn(|_| {
-                    let scheduler = Arc::clone(&scheduler);
-                    // Make a new executor per thread.
-                    let task = E::init(task_initial_arguments);
-
-                    while let Some(idx) = scheduler.next_txn_to_execute() {
-                        let txn = &signature_verified_block[idx];
-                        let txn_accesses = &infer_result[idx];
-
-                        // If the txn has unresolved dependency, adds the txn to deps_mapping of its dependency (only the first one) and continue
-                        if txn_accesses.keys_read.iter().any(|k| {
-                            match versioned_data_cache.read(k, idx) {
-                                Err(Some(dep_id)) => scheduler.add_dependency(idx, dep_id),
-                                Ok(_) | Err(None) => false,
-                            }
-                        }) {
-                            // This causes a PAUSE on an x64 arch, and takes 140 cycles. Allows other
-                            // core to take resources and better HT.
-                            ::std::hint::spin_loop();
-                            continue;
-                        }
-
-                        // Process the output of a transaction
-                        let view = MVHashMapView {
-                            map: &versioned_data_cache,
-                            version: idx,
-                            scheduler: &scheduler,
-                            has_unexpected_read: AtomicBool::new(false),
-                        };
-                        let execute_result = task.execute_transaction(&view, txn);
-                        if view.has_unexpected_read() {
-                            // We've already added this transaction back to the scheduler in the
-                            // MVHashmapView where this bit is set, thus it is safe to continue
-                            // here.
-                            continue;
-                        }
-                        let commit_result =
-                            match execute_result {
-                                ExecutionStatus::Success(output) => {
-                                    // Commit the side effects to the versioned_data_cache.
-                                    if output.get_writes().into_iter().all(|(k, v)| {
-                                        versioned_data_cache.write(&k, idx, v).is_ok()
-                                    }) {
-                                        ExecutionStatus::Success(output)
-                                    } else {
-                                        // Failed to write to the versioned data cache as
-                                        // transaction write to a key that wasn't estimated by the
-                                        // inferencer, aborting the entire execution.
-                                        ExecutionStatus::Abort(Error::UnestimatedWrite)
-                                    }
-                                }
-                                ExecutionStatus::SkipRest(output) => {
-                                    // Commit and skip the rest of the transactions.
-                                    if output.get_writes().into_iter().all(|(k, v)| {
-                                        versioned_data_cache.write(&k, idx, v).is_ok()
-                                    }) {
-                                        scheduler.set_stop_version(idx + 1);
+            // Execute txn batch in parallel
+            scope(|s| {
+                for _ in 0..(compute_cpus) {
+                    s.spawn(|_| {
+                        let scheduler = Arc::clone(&scheduler);
+                        // Make a new executor per thread.
+                        let task = E::init(task_initial_arguments);
+    
+                        while let Some(idx) = scheduler.next_txn() {
+                            let txn = &signature_verified_block[idx];
+    
+                            let view = MVHashMapView {
+                                map: &shared_data,
+                                version: idx,
+                                scheduler: &scheduler,
+                            };
+                            let execute_result = task.execute_transaction(&view, txn);
+                            let commit_result =
+                                match execute_result {
+                                    ExecutionStatus::Success(output) => ExecutionStatus::Success(output),
+                                    ExecutionStatus::SkipRest(output) => {
+                                        // scheduler.set_stop_version(idx + 1);
                                         ExecutionStatus::SkipRest(output)
-                                    } else {
-                                        // Failed to write to the versioned data cache as
-                                        // transaction write to a key that wasn't estimated by the
-                                        // inferencer, aborting the entire execution.
-                                        ExecutionStatus::Abort(Error::UnestimatedWrite)
                                     }
-                                }
-                                ExecutionStatus::Abort(err) => {
-                                    // Abort the execution with user defined error.
-                                    scheduler.set_stop_version(idx + 1);
-                                    ExecutionStatus::Abort(Error::UserError(err.clone()))
-                                }
+                                    ExecutionStatus::Abort(err) => {
+                                        // Abort the execution with user defined error.
+                                        // scheduler.set_stop_version(idx + 1);
+                                        ExecutionStatus::Abort(Error::UserError(err.clone()))
+                                    }
+                                };
+                            
+                            scheduler.write_output(idx, commit_result);
+                        }
+                    });
+                }
+            });
+
+            // Initialize the execution marker to be 0
+            scheduler.init_marker();
+
+            // Commit txn batch in parallel
+            scope(|s| {
+                for _ in 0..(compute_cpus) {
+                    s.spawn(|_| {
+                        let scheduler = Arc::clone(&scheduler);
+    
+                        while let Some(idx) = scheduler.next_txn() {    
+                            let view = MVHashMapView {
+                                map: &shared_data,
+                                version: idx,
+                                scheduler: &scheduler,
                             };
 
-                        for write in txn_accesses.keys_written.iter() {
-                            // Unwrap here is fine because all writes here should be in the mvhashmap.
-                            assert!(versioned_data_cache.skip_if_not_set(write, idx).is_ok());
-                        }
+                            if view.can_commit() {
+                                let commit_result = scheduler.get_output(idx);
 
-                        scheduler.finish_execution(idx);
-                        outcomes.set_result(idx, commit_result);
-                    }
-                });
-            }
-        });
+                                let result =
+                                match commit_result {
+                                    ExecutionStatus::Success(output) => ExecutionStatus::Success(output),
+                                    ExecutionStatus::SkipRest(output) => {
+                                        scheduler.set_stop_version(idx + 1);
+                                        ExecutionStatus::SkipRest(output)
+                                    }
+                                    ExecutionStatus::Abort(err) => {
+                                        // Abort the execution with user defined error.
+                                        scheduler.set_stop_version(idx + 1);
+                                        ExecutionStatus::Abort(err)
+                                    }
+                                };
+
+                                outcomes.set_result(idx, result);
+
+                            } else {
+                                // Add the transaction to the next batch
+                                scheduler.add_transaction(idx);
+                            }
+                        }
+                    });
+                }
+            });
+
+            // Prepare the batch for next iteration
+            scheduler.renew_batch_list();
+        }
+
+        
 
         // Splits the head of the vec of results that are valid
-        let valid_results_length = scheduler.num_txn_to_execute();
+        let valid_results_length = scheduler.num_txn();
 
         // Dropping large structures is expensive -- do this is a separate thread.
         ::std::thread::spawn(move || {
-            drop(scheduler);
-            drop(infer_result);
+            // drop(scheduler);
+            // drop(infer_result);
             drop(signature_verified_block); // Explicit drops to measure their cost.
-            drop(versioned_data_cache);
+            drop(shared_data);
         });
 
         outcomes.get_all_results(valid_results_length)

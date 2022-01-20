@@ -230,7 +230,7 @@ where
 
     fn execute_transaction(
         &self,
-        view: &MVHashMapView<K, V>,
+        view: &MVHashMapView<K, V, Self::Output, Self::Error>,
         txn: &Self::T,
     ) -> ExecutionStatus<Self::Output, Self::Error> {
         match txn {
@@ -246,7 +246,12 @@ where
                         Ok(Some(v)) => Some(v.clone()),
                         Ok(None) => None,
                         Err(_) => return ExecutionStatus::Abort(0),
-                    })
+                    });
+                    view.add_read_write(k);
+                }
+                for (k, _) in actual_writes.iter() {
+                    view.write(k);
+                    view.add_read_write(k);
                 }
                 ExecutionStatus::Success(Output(actual_writes.clone(), reads_result))
             }

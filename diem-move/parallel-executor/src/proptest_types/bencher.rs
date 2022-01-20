@@ -115,7 +115,7 @@ where
             .execute_transactions_parallel((), self.transactions);
 
         if let Some(expected_output) = self.expected_output {
-            assert!(expected_output.check_output(&output))
+            assert!(expected_output.check_output(&output));
         }
     }
 }

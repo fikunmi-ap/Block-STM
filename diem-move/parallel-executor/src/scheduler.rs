@@ -1,97 +1,71 @@
 // Copyright (c) The Diem Core Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+use std::hash::Hash;
+use std::cmp::min;
 use crossbeam_queue::SegQueue;
-use mvhashmap::Version;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc, RwLock,
 };
+use std::iter::FromIterator;
+use std::collections::HashSet;
+use crate::{
+    errors::Error,
+    task::{ExecutionStatus, Transaction, TransactionOutput},
+};
 
-#[repr(usize)]
-enum ExecutionStatus {
-    Executed = 1,
-    NotExecuted = 0,
-}
+pub type Version = usize;
 
-pub struct Scheduler {
-    // Shared index (version) of the next txn to be executed from the original transaction sequence.
+// pub struct ReadWriteSet<K> {
+//     read_set: Vec<K>,
+//     write_set: Vec<K>,
+// }
+
+pub struct Scheduler<T, E, K> {
+    // Shared index (version) of the next txn to be executed/committed from the current batch
     execution_marker: AtomicUsize,
-    // Shared number of txns to execute: updated before executing a block or when an error or
-    // reconfiguration leads to early stopping (at that transaction version).
     stop_at_version: AtomicUsize,
-
-    txn_buffer: SegQueue<usize>, // shared queue of list of dependency-resolved transactions.
-    // TODO: Do we need padding here?
-    txn_dependency: Vec<Arc<RwLock<Vec<usize>>>>, // version -> txns that depend on it.
-    txn_status: Vec<AtomicUsize>,                 // version -> execution status.
+    num_txns: usize,
+    batch_size: AtomicUsize,
+    batch_list: Vec<AtomicUsize>, // vector for storing txn ids of remaining batch
+    batch_queue: SegQueue<usize>, // thread-safe queue for storing txn ids of remaining batch
+    outputs: Vec<RwLock<Option<ExecutionStatus<T, Error<E>>>>>, // vector of txn execution outputs
+    pub read_write_set: Vec<RwLock<HashSet<K>>>, // read write set of each txn
 }
 
-impl Scheduler {
+impl<T: TransactionOutput, E: Send + Clone, K: Hash + Clone + Eq> Scheduler<T, E, K> {
     pub fn new(num_txns: usize) -> Self {
+        let mut batch_list = Vec::new();
+        for i in 0..num_txns {
+            batch_list.push(AtomicUsize::new(i));
+        }
         Self {
             execution_marker: AtomicUsize::new(0),
             stop_at_version: AtomicUsize::new(num_txns),
-            txn_buffer: SegQueue::new(),
-            txn_dependency: (0..num_txns)
-                .map(|_| Arc::new(RwLock::new(Vec::new())))
-                .collect(),
-            txn_status: (0..num_txns)
-                .map(|_| AtomicUsize::new(ExecutionStatus::NotExecuted as usize))
-                .collect(),
+            num_txns,
+            batch_size: AtomicUsize::new(num_txns),
+            batch_list,
+            batch_queue: SegQueue::new(),
+            outputs: (0..num_txns).map(|_| RwLock::new(None)).collect(),
+            read_write_set: (0..num_txns).map(|_| RwLock::new(HashSet::new())).collect(),
         }
     }
 
-    // Return the next txn id for the thread to execute: first fetch from the shared queue that
-    // stores dependency-resolved txns, then fetch from the original ordered txn sequence.
-    // Return Some(id) if found the next transaction, else return None.
-    pub fn next_txn_to_execute(&self) -> Option<Version> {
-        // Fetch txn from txn_buffer
-        match self.txn_buffer.pop() {
-            Some(version) => Some(version),
-            None => {
-                // Fetch the first non-executed txn from the original transaction list
-                let next_to_execute = self.execution_marker.fetch_add(1, Ordering::Relaxed);
-                if next_to_execute < self.num_txn_to_execute() {
-                    Some(next_to_execute)
-                } else {
-                    // Everything executed at least once - validation will take care of rest.
-                    None
-                }
-            }
-        }
+    pub fn init_marker(&self) {
+        self.execution_marker.store(0, Ordering::Relaxed);
     }
 
-    // Invoked when txn depends on another txn, adds version to the dependency list the other txn.
-    // Return true if successful, otherwise dependency resolved in the meantime, return false.
-    pub fn add_dependency(&self, version: Version, dep_version: Version) -> bool {
-        // Could pre-check that the txn isn't in executed state, but shouldn't matter much since
-        // the caller usually has just observed the read dependency (so not executed state).
-
-        // txn_dependency is initialized for all versions, so unwrap() is safe.
-        let mut stored_deps = self.txn_dependency[dep_version].write().unwrap();
-        if self.txn_status[dep_version].load(Ordering::Acquire)
-            != ExecutionStatus::Executed as usize
-        {
-            stored_deps.push(version);
-            return true;
+    // return the next txn id in the batch
+    pub fn next_txn(&self) -> Option<Version> {
+        let next_to_execute = self.execution_marker.fetch_add(1, Ordering::Relaxed);
+        if next_to_execute < self.batch_size() {
+            let id = self.batch_list[next_to_execute].load(Ordering::Relaxed);
+            if id < self.stop_at_version.load(Ordering::Relaxed) {
+                return Some(id);
+            } 
         }
-        false
-    }
-
-    // After txn is executed, add its dependencies to the shared buffer for execution.
-    pub fn finish_execution(&self, version: Version) {
-        self.txn_status[version].store(ExecutionStatus::Executed as usize, Ordering::Release);
-        let mut version_deps: Vec<usize> = {
-            // we want to make things fast inside the lock, so use take instead of clone
-            let mut stored_deps = self.txn_dependency[version].write().unwrap();
-            std::mem::take(&mut stored_deps)
-        };
-
-        version_deps.sort_unstable();
-        for dep in version_deps {
-            self.txn_buffer.push(dep);
-        }
+        return None;
     }
 
     // Reset the txn version/id to end execution earlier. The executor will stop at the smallest
@@ -101,13 +75,47 @@ impl Scheduler {
             .fetch_min(stop_version, Ordering::Relaxed);
     }
 
-    // Adding version to the ready queue.
+    pub fn get_output(&self, version: Version) -> ExecutionStatus<T, Error<E>> {
+        self.outputs[version].write().unwrap().take().unwrap()
+    }
+
+    pub fn write_output(&self, version: Version, output: ExecutionStatus<T, Error<E>>) {
+        let mut data = self.outputs[version].write().unwrap();
+        *data = Some(output);
+    }
+
+    // Adding version to the batch queue.
     pub fn add_transaction(&self, version: Version) {
-        self.txn_buffer.push(version)
+        self.batch_queue.push(version);
+    }
+
+    pub fn add_read_write(self, key: &K, version: Version) {
+        self.read_write_set[version].write().unwrap().insert(key.clone());
+    }
+
+    pub fn get_read_write(&self, version: Version) -> HashSet<K> {
+        self.read_write_set[version].read().unwrap().clone()
+    }
+
+    pub fn renew_batch_list(&self) {
+        let size = self.batch_queue.len();
+        self.batch_size.store(size, Ordering::Relaxed);
+        for i in 0..size {
+            self.batch_list[i].store(self.batch_queue.pop().unwrap(), Ordering::Relaxed);
+        }
+    }
+
+    pub fn batch_size(&self) -> usize {
+        self.batch_size.load(Ordering::Relaxed)
     }
 
     // Get the last txn version/id
-    pub fn num_txn_to_execute(&self) -> Version {
+    pub fn num_txn(&self) -> Version {
         self.stop_at_version.load(Ordering::Relaxed)
+    }
+
+    pub fn finish(&self) -> bool {
+        // finish the loop when batch is empty or stop earlier
+        return self.batch_size() == 0 || (self.num_txns-self.batch_size()+1 >= self.num_txn())
     }
 }
