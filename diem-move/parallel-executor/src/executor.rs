@@ -30,6 +30,7 @@ pub struct MVHashMapView<'a, K, V, T, E> {
 
 impl<'a, K: Hash + Clone + Eq, V: Clone, T: TransactionOutput, E: Send + Clone> MVHashMapView<'a, K, V, T, E> {
     pub fn read(&self, key: &K) -> AResult<Option<V>> {
+        self.add_read_write(key);
         match self.map.read(key) {
             Some(v) => Ok(Some(v)),
             None => Ok(None),
@@ -37,6 +38,7 @@ impl<'a, K: Hash + Clone + Eq, V: Clone, T: TransactionOutput, E: Send + Clone> 
     }
 
     pub fn write(&self, key: &K) {
+        // println!("update lock table for id {}", self.version);
         self.map.update_lock_table(key, self.version);
     }
 
@@ -50,7 +52,9 @@ impl<'a, K: Hash + Clone + Eq, V: Clone, T: TransactionOutput, E: Send + Clone> 
     }
 
     pub fn can_commit(&self) -> bool {
-        for k in self.scheduler.get_read_write(self.version) {
+        let read_write_set = self.scheduler.get_read_write(self.version);
+        // println!("read write set size {}", read_write_set.len());
+        for k in read_write_set {
             match self.map.read_lock_table(&k) {
                 Some(version) => {
                     if version < self.version {
@@ -123,6 +127,7 @@ where
                         let task = E::init(task_initial_arguments);
     
                         while let Some(idx) = scheduler.next_txn() {
+                            // println!("execute id {}", idx);  
                             let txn = &signature_verified_block[idx];
     
                             let view = MVHashMapView {
@@ -133,7 +138,11 @@ where
                             let execute_result = task.execute_transaction(&view, txn);
                             let commit_result =
                                 match execute_result {
-                                    ExecutionStatus::Success(output) => ExecutionStatus::Success(output),
+                                    ExecutionStatus::Success(output) => {
+                                        // Hack to update the lock table, since we did not implement VM hijacker for writes
+                                        output.get_writes().into_iter().for_each(|(k, _)| { view.write(&k); view.add_read_write(&k); });
+                                        ExecutionStatus::Success(output)
+                                    }
                                     ExecutionStatus::SkipRest(output) => {
                                         // scheduler.set_stop_version(idx + 1);
                                         ExecutionStatus::SkipRest(output)
@@ -160,7 +169,8 @@ where
                     s.spawn(|_| {
                         let scheduler = Arc::clone(&scheduler);
     
-                        while let Some(idx) = scheduler.next_txn() {    
+                        while let Some(idx) = scheduler.next_txn() {  
+                            // println!("commit id {}", idx);  
                             let view = MVHashMapView {
                                 map: &shared_data,
                                 version: idx,
@@ -168,6 +178,7 @@ where
                             };
 
                             if view.can_commit() {
+                                // println!("committed id {}", idx); 
                                 let commit_result = scheduler.get_output(idx);
 
                                 let result =

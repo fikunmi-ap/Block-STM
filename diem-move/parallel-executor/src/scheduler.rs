@@ -116,6 +116,6 @@ impl<T: TransactionOutput, E: Send + Clone, K: Hash + Clone + Eq> Scheduler<T, E
 
     pub fn finish(&self) -> bool {
         // finish the loop when batch is empty or stop earlier
-        return self.batch_size() == 0 || (self.num_txns-self.batch_size()+1 >= self.num_txn())
+        return self.batch_size() == 0 //|| (self.num_txns-self.batch_size()+1 >= self.num_txn())
     }
 }

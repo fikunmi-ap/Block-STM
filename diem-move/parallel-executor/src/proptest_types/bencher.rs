@@ -108,6 +108,16 @@ where
     }
 
     pub(crate) fn run(self) {
+        // let txns = self.transactions.clone();
+        // for id in 0..txns.len() {
+        //     println!("id {}", id);
+        //     if let Transaction::Write { actual_writes, skipped_writes, reads } = &txns[id] {
+        //         println!("actual writes {:?}", actual_writes);
+        //         println!("skipped writes {:?}", skipped_writes);
+        //         println!("reads {:?}\n", reads);
+        //     }
+        // }
+
         let output =
             ParallelTransactionExecutor::<Transaction<K, V>, Task<K, V>, Inferencer<K, V>>::new(
                 Inferencer::new(),
