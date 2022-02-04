@@ -102,11 +102,11 @@ where
 
         let scheduler = Arc::new(Scheduler::new(num_txns));
         let shared_data = Arc::new(MVHashMap::new());
-        let compute_cpus = min(1 + (num_txns / 50), self.num_cpus - 1); // Ensure we have at least 50 tx per thread.
-        println!(
-            "Number of threads: {}",
-            compute_cpus
-        );
+        let compute_cpus = self.num_cpus - 1; //min(1 + (num_txns / 50), self.num_cpus - 1); // Ensure we have at least 50 tx per thread.
+        // println!(
+        //     "Number of threads: {}",
+        //     compute_cpus
+        // );
 
         while !scheduler.finish() {
             println!(
