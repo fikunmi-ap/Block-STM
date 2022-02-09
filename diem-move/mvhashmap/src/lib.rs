@@ -43,8 +43,8 @@ impl<K: Hash + Clone + Eq, V: Clone> MVHashMap<K, V> {
     }
 
     /// Write to `key`
-    pub fn write(&self, key: &K, data: V) {
-        self.data_vector.insert(key.clone(), data);
+    pub fn write(&self, key: &K, data: &V) {
+        self.data_vector.insert(key.clone(), data.clone());
     }
 
     pub fn read(&self, key: &K) -> Option<V> {

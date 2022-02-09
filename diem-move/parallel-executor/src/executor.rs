@@ -37,7 +37,12 @@ impl<'a, K: Hash + Clone + Eq, V: Clone, T: TransactionOutput, E: Send + Clone> 
         }
     }
 
-    pub fn write(&self, key: &K) {
+    pub fn write(&self, key: &K, data: &V) {
+        // println!("update lock table for id {}", self.version);
+        self.map.write(key, data);
+    }
+
+    pub fn update_lock_table(&self, key: &K) {
         // println!("update lock table for id {}", self.version);
         self.map.update_lock_table(key, self.version);
     }
@@ -140,7 +145,7 @@ where
                                 match execute_result {
                                     ExecutionStatus::Success(output) => {
                                         // Hack to update the lock table, since we did not implement VM hijacker for writes
-                                        output.get_writes().into_iter().for_each(|(k, _)| { view.write(&k); view.add_read_write(&k); });
+                                        output.get_writes().into_iter().for_each(|(k, _)| { view.update_lock_table(&k); view.add_read_write(&k); });
                                         ExecutionStatus::Success(output)
                                     }
                                     ExecutionStatus::SkipRest(output) => {
@@ -183,7 +188,12 @@ where
 
                                 let result =
                                 match commit_result {
-                                    ExecutionStatus::Success(output) => ExecutionStatus::Success(output),
+                                    ExecutionStatus::Success(output) => {
+                                        // println!("succ {}", output.get_writes().len());
+                                        // Hack to update the lock table, since we did not implement VM hijacker for writes
+                                        output.get_writes().into_iter().for_each(|(k, v)| { view.write(&k, &v) });
+                                        ExecutionStatus::Success(output)
+                                    }
                                     ExecutionStatus::SkipRest(output) => {
                                         scheduler.set_stop_version(idx + 1);
                                         ExecutionStatus::SkipRest(output)

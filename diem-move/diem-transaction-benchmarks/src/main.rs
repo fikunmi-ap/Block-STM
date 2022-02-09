@@ -8,10 +8,10 @@ fn main() {
 
     let writes = [1.0];
     let reads = [1.0];
-    let acts = [100, 1000, 10000, 100000];
+    let acts = [1000, 5000, 10000, 50000, 100000, 500000];
     let txns = [1000, 10000];
-    let num_warmups = 2;
-    let num_runs = 3;
+    let num_warmups = 1;
+    let num_runs = 2;
 
     let mut measurements = Vec::new();
 
