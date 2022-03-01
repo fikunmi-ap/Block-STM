@@ -114,10 +114,10 @@ where
         // );
 
         while !scheduler.finish() {
-            println!(
-                "Batch size: {}",
-                scheduler.batch_size()
-            );
+            // println!(
+            //     "Batch size: {}",
+            //     scheduler.batch_size()
+            // );
             // Initialize the lock table to be empty
             shared_data.init_lock_table();
             // Initialize the execution marker to be 0

@@ -290,11 +290,11 @@ module DiemFramework::DiemAccount {
         payee: address,
         to_deposit: Diem<Token>,
         metadata: vector<u8>,
-        metadata_signature: vector<u8>,
-        dual_attestation: bool,
-    ) acquires DiemAccount, Balance, AccountOperationsCapability {
-        DiemTimestamp::assert_operating();
-        AccountFreezing::assert_not_frozen(payee);
+        _metadata_signature: vector<u8>,
+        _dual_attestation: bool,
+    ) acquires DiemAccount, Balance {
+        // DiemTimestamp::assert_operating();
+        // AccountFreezing::assert_not_frozen(payee);
 
         // Check that the `to_deposit` coin is non-zero
         let deposit_value = Diem::value(&to_deposit);
@@ -307,25 +307,25 @@ module DiemFramework::DiemAccount {
             Errors::invalid_argument(EPAYEE_CANT_ACCEPT_CURRENCY_TYPE)
         );
 
-        if (dual_attestation) {
-            // Check that the payment complies with dual attestation rules
-            DualAttestation::assert_payment_ok<Token>(
-                payer, payee, deposit_value, copy metadata, metadata_signature
-            );
-        };
+        // if (dual_attestation) {
+        //     // Check that the payment complies with dual attestation rules
+        //     DualAttestation::assert_payment_ok<Token>(
+        //         payer, payee, deposit_value, copy metadata, metadata_signature
+        //     );
+        // };
 
-        // Ensure that this deposit is compliant with the account limits on
-        // this account.
-        if (should_track_limits_for_account<Token>(payer, payee, false)) {
-            assert!(
-                AccountLimits::update_deposit_limits<Token>(
-                    deposit_value,
-                    VASP::parent_address(payee),
-                    &borrow_global<AccountOperationsCapability>(@DiemRoot).limits_cap
-                ),
-                Errors::limit_exceeded(EDEPOSIT_EXCEEDS_LIMITS)
-            )
-        };
+        // // Ensure that this deposit is compliant with the account limits on
+        // // this account.
+        // if (should_track_limits_for_account<Token>(payer, payee, false)) {
+        //     assert!(
+        //         AccountLimits::update_deposit_limits<Token>(
+        //             deposit_value,
+        //             VASP::parent_address(payee),
+        //             &borrow_global<AccountOperationsCapability>(@DiemRoot).limits_cap
+        //         ),
+        //         Errors::limit_exceeded(EDEPOSIT_EXCEEDS_LIMITS)
+        //     )
+        // };
 
         // Deposit the `to_deposit` coin
         Diem::deposit(&mut borrow_global_mut<Balance<Token>>(payee).coin, to_deposit);
@@ -351,7 +351,7 @@ module DiemFramework::DiemAccount {
         include DepositOverflowAbortsIf<Token>{amount: amount};
         include DepositEnsures<Token>{amount: amount};
         include DepositEmits<Token>{amount: amount};
-        include dual_attestation ==> DualAttestation::AssertPaymentOkAbortsIf<Token>{value: amount};
+        // include dual_attestation ==> DualAttestation::AssertPaymentOkAbortsIf<Token>{value: amount};
     }
     spec schema DepositAbortsIf<Token> {
         payer: address;
@@ -428,7 +428,7 @@ module DiemFramework::DiemAccount {
         designated_dealer_address: address,
         mint_amount: u64,
         tier_index: u64,
-    ) acquires DiemAccount, Balance, AccountOperationsCapability {
+    ) acquires DiemAccount, Balance {
         Roles::assert_treasury_compliance(tc_account);
         let coin = DesignatedDealer::tiered_mint<Token>(
             tc_account, mint_amount, designated_dealer_address, tier_index
@@ -492,7 +492,7 @@ module DiemFramework::DiemAccount {
         account: &signer,
         preburn_address: address,
         amount: u64,
-    ) acquires DiemAccount, Balance, AccountOperationsCapability {
+    ) acquires DiemAccount, Balance {
         let coin = Diem::cancel_burn<Token>(account, preburn_address, amount);
         // record both sender and recipient as `preburn_address`: the coins are moving from
         // `preburn_address`'s `Preburn` resource to its balance
@@ -1650,7 +1650,7 @@ module DiemFramework::DiemAccount {
         txn_max_gas_units: u64,
         txn_expiration_time: u64,
         chain_id: u8,
-    ) acquires DiemAccount, Balance {
+    ) {
         assert!(
             DiemTransactionPublishingOption::is_module_allowed(&sender),
             Errors::invalid_state(PROLOGUE_EMODULE_NOT_ALLOWED),
@@ -1706,12 +1706,12 @@ module DiemFramework::DiemAccount {
         txn_max_gas_units: u64,
         txn_expiration_time: u64,
         chain_id: u8,
-        script_hash: vector<u8>,
-    ) acquires DiemAccount, Balance {
-        assert!(
-            DiemTransactionPublishingOption::is_script_allowed(&sender, &script_hash),
-            Errors::invalid_state(PROLOGUE_ESCRIPT_NOT_ALLOWED),
-        );
+        _script_hash: vector<u8>,
+    ) {
+        // assert!(
+        //     DiemTransactionPublishingOption::is_script_allowed(&sender, &script_hash),
+        //     Errors::invalid_state(PROLOGUE_ESCRIPT_NOT_ALLOWED),
+        // );
 
         prologue_common<Token>(
             &sender,
@@ -1726,10 +1726,10 @@ module DiemFramework::DiemAccount {
     spec script_prologue {
         let transaction_sender = Signer::address_of(sender);
         let max_transaction_fee = txn_gas_price * txn_max_gas_units;
-        include ScriptPrologueAbortsIf<Token>{
-            max_transaction_fee,
-            txn_expiration_time_seconds: txn_expiration_time,
-        };
+        // include ScriptPrologueAbortsIf<Token>{
+        //     max_transaction_fee,
+        //     txn_expiration_time_seconds: txn_expiration_time,
+        // };
         ensures prologue_guarantees(sender);
     }
     spec schema ScriptPrologueAbortsIf<Token> {
@@ -1755,7 +1755,7 @@ module DiemFramework::DiemAccount {
         txn_public_key: vector<u8>,
         txn_expiration_time: u64,
         chain_id: u8,
-    ) acquires DiemAccount, Balance {
+    ) {
         assert!(
             Signer::address_of(&sender) == @DiemRoot,
             Errors::invalid_argument(PROLOGUE_EINVALID_WRITESET_SENDER)
@@ -1865,17 +1865,17 @@ module DiemFramework::DiemAccount {
         sender: signer,
         txn_sequence_number: u64,
         txn_sender_public_key: vector<u8>,
-        secondary_signer_addresses: vector<address>,
-        secondary_signer_public_key_hashes: vector<vector<u8>>,
+        _secondary_signer_addresses: vector<address>,
+        _secondary_signer_public_key_hashes: vector<vector<u8>>,
         txn_gas_price: u64,
         txn_max_gas_units: u64,
         txn_expiration_time: u64,
         chain_id: u8,
-    ) acquires DiemAccount, Balance {
-        check_secondary_signers(
-            secondary_signer_addresses,
-            secondary_signer_public_key_hashes
-        );
+    ) {
+        // check_secondary_signers(
+        //     secondary_signer_addresses,
+        //     secondary_signer_public_key_hashes
+        // );
         prologue_common<Token>(
             &sender,
             txn_sequence_number,
@@ -1889,10 +1889,10 @@ module DiemFramework::DiemAccount {
     spec multi_agent_script_prologue {
         let transaction_sender = Signer::address_of(sender);
         let max_transaction_fee = txn_gas_price * txn_max_gas_units;
-        include MultiAgentScriptPrologueAbortsIf<Token>{
-            max_transaction_fee,
-            txn_expiration_time_seconds: txn_expiration_time,
-        };
+        // include MultiAgentScriptPrologueAbortsIf<Token>{
+        //     max_transaction_fee,
+        //     txn_expiration_time_seconds: txn_expiration_time,
+        // };
         ensures prologue_guarantees(sender);
     }
 
@@ -1916,108 +1916,108 @@ module DiemFramework::DiemAccount {
     /// - That the account has enough balance to pay for all of the gas
     /// - That the sequence number matches the transaction's sequence key
     fun prologue_common<Token>(
-        sender: &signer,
-        txn_sequence_number: u64,
-        txn_public_key: vector<u8>,
-        txn_gas_price: u64,
-        txn_max_gas_units: u64,
-        txn_expiration_time_seconds: u64,
-        chain_id: u8,
-    ) acquires DiemAccount, Balance {
-        let transaction_sender = Signer::address_of(sender);
+        _sender: &signer,
+        _txn_sequence_number: u64,
+        _txn_public_key: vector<u8>,
+        _txn_gas_price: u64,
+        _txn_max_gas_units: u64,
+        _txn_expiration_time_seconds: u64,
+        _chain_id: u8,
+    ) {
+        // let transaction_sender = Signer::address_of(sender);
 
-        // [PCA1]: Check that the chain ID stored on-chain matches the chain ID specified by the transaction
-        assert!(ChainId::get() == chain_id, Errors::invalid_argument(PROLOGUE_EBAD_CHAIN_ID));
+        // // [PCA1]: Check that the chain ID stored on-chain matches the chain ID specified by the transaction
+        // assert!(ChainId::get() == chain_id, Errors::invalid_argument(PROLOGUE_EBAD_CHAIN_ID));
 
-        // [PCA2]: Verify that the transaction sender's account exists
-        assert!(exists_at(transaction_sender), Errors::invalid_argument(PROLOGUE_EACCOUNT_DNE));
+        // // [PCA2]: Verify that the transaction sender's account exists
+        // assert!(exists_at(transaction_sender), Errors::invalid_argument(PROLOGUE_EACCOUNT_DNE));
 
-        // [PCA3]: We check whether this account is frozen, if it is no transaction can be sent from it.
-        assert!(
-            !AccountFreezing::account_is_frozen(transaction_sender),
-            Errors::invalid_state(PROLOGUE_EACCOUNT_FROZEN)
-        );
+        // // [PCA3]: We check whether this account is frozen, if it is no transaction can be sent from it.
+        // assert!(
+        //     !AccountFreezing::account_is_frozen(transaction_sender),
+        //     Errors::invalid_state(PROLOGUE_EACCOUNT_FROZEN)
+        // );
 
-        // Load the transaction sender's account
-        let sender_account = borrow_global<DiemAccount>(transaction_sender);
+        // // Load the transaction sender's account
+        // let sender_account = borrow_global<DiemAccount>(transaction_sender);
 
-        // [PCA4]: Check that the hash of the transaction's public key matches the account's auth key
-        assert!(
-            Hash::sha3_256(txn_public_key) == *&sender_account.authentication_key,
-            Errors::invalid_argument(PROLOGUE_EINVALID_ACCOUNT_AUTH_KEY),
-        );
+        // // [PCA4]: Check that the hash of the transaction's public key matches the account's auth key
+        // assert!(
+        //     Hash::sha3_256(txn_public_key) == *&sender_account.authentication_key,
+        //     Errors::invalid_argument(PROLOGUE_EINVALID_ACCOUNT_AUTH_KEY),
+        // );
 
-        // [PCA5]: Check that the max transaction fee does not overflow a u64 value.
-        assert!(
-            (txn_gas_price as u128) * (txn_max_gas_units as u128) <= MAX_U64,
-            Errors::invalid_argument(PROLOGUE_ECANT_PAY_GAS_DEPOSIT),
-        );
+        // // [PCA5]: Check that the max transaction fee does not overflow a u64 value.
+        // assert!(
+        //     (txn_gas_price as u128) * (txn_max_gas_units as u128) <= MAX_U64,
+        //     Errors::invalid_argument(PROLOGUE_ECANT_PAY_GAS_DEPOSIT),
+        // );
 
-        let max_transaction_fee = txn_gas_price * txn_max_gas_units;
+        // let max_transaction_fee = txn_gas_price * txn_max_gas_units;
 
-        // Don't grab the balance if the transaction fee is zero
-        if (max_transaction_fee > 0) {
-            // [PCA6]: Check that the gas fee can be paid in this currency
-            assert!(
-                TransactionFee::is_coin_initialized<Token>(),
-                Errors::invalid_argument(PROLOGUE_EBAD_TRANSACTION_FEE_CURRENCY)
-            );
-            // [PCA7]: Check that the account has a balance in this currency
-            assert!(
-                exists<Balance<Token>>(transaction_sender),
-                Errors::invalid_argument(PROLOGUE_ECANT_PAY_GAS_DEPOSIT)
-            );
-            let balance_amount = balance<Token>(transaction_sender);
-            // [PCA8]: Check that the account can cover the maximum transaction fee
-            assert!(
-                balance_amount >= max_transaction_fee,
-                Errors::invalid_argument(PROLOGUE_ECANT_PAY_GAS_DEPOSIT)
-            );
-        };
+        // // Don't grab the balance if the transaction fee is zero
+        // if (max_transaction_fee > 0) {
+        //     // [PCA6]: Check that the gas fee can be paid in this currency
+        //     assert!(
+        //         TransactionFee::is_coin_initialized<Token>(),
+        //         Errors::invalid_argument(PROLOGUE_EBAD_TRANSACTION_FEE_CURRENCY)
+        //     );
+        //     // [PCA7]: Check that the account has a balance in this currency
+        //     assert!(
+        //         exists<Balance<Token>>(transaction_sender),
+        //         Errors::invalid_argument(PROLOGUE_ECANT_PAY_GAS_DEPOSIT)
+        //     );
+        //     let balance_amount = balance<Token>(transaction_sender);
+        //     // [PCA8]: Check that the account can cover the maximum transaction fee
+        //     assert!(
+        //         balance_amount >= max_transaction_fee,
+        //         Errors::invalid_argument(PROLOGUE_ECANT_PAY_GAS_DEPOSIT)
+        //     );
+        // };
 
-        // [PCA9]: Check that the transaction hasn't expired
-        assert!(
-            DiemTimestamp::now_seconds() < txn_expiration_time_seconds,
-            Errors::invalid_argument(PROLOGUE_ETRANSACTION_EXPIRED)
-        );
+        // // [PCA9]: Check that the transaction hasn't expired
+        // assert!(
+        //     DiemTimestamp::now_seconds() < txn_expiration_time_seconds,
+        //     Errors::invalid_argument(PROLOGUE_ETRANSACTION_EXPIRED)
+        // );
 
-        // [PCA10]: Check that the transaction's sequence number will not overflow.
-        assert!(
-            (txn_sequence_number as u128) < MAX_U64,
-            Errors::limit_exceeded(PROLOGUE_ESEQUENCE_NUMBER_TOO_BIG)
-        );
+        // // [PCA10]: Check that the transaction's sequence number will not overflow.
+        // assert!(
+        //     (txn_sequence_number as u128) < MAX_U64,
+        //     Errors::limit_exceeded(PROLOGUE_ESEQUENCE_NUMBER_TOO_BIG)
+        // );
 
-        if (CRSN::has_crsn(transaction_sender)) {
-            // [PCA13]: If using a sequence nonce check that it's accepted
-            assert!(
-                CRSN::check(sender, txn_sequence_number),
-                Errors::invalid_argument(PROLOGUE_ESEQ_NONCE_INVALID)
-            );
-        } else {
-            // [PCA11]: Check that the transaction sequence number is not too old (in the past)
-            assert!(
-                txn_sequence_number >= sender_account.sequence_number,
-                Errors::invalid_argument(PROLOGUE_ESEQUENCE_NUMBER_TOO_OLD)
-            );
+        // if (CRSN::has_crsn(transaction_sender)) {
+        //     // [PCA13]: If using a sequence nonce check that it's accepted
+        //     assert!(
+        //         CRSN::check(sender, txn_sequence_number),
+        //         Errors::invalid_argument(PROLOGUE_ESEQ_NONCE_INVALID)
+        //     );
+        // } else {
+        //     // [PCA11]: Check that the transaction sequence number is not too old (in the past)
+        //     assert!(
+        //         txn_sequence_number >= sender_account.sequence_number,
+        //         Errors::invalid_argument(PROLOGUE_ESEQUENCE_NUMBER_TOO_OLD)
+        //     );
 
-            // [PCA12]: Check that the transaction's sequence number matches the
-            // current sequence number. Otherwise sequence number is too new by [PCA11].
-            assert!(
-                txn_sequence_number == sender_account.sequence_number,
-                Errors::invalid_argument(PROLOGUE_ESEQUENCE_NUMBER_TOO_NEW)
-            );
+        //     // [PCA12]: Check that the transaction's sequence number matches the
+        //     // current sequence number. Otherwise sequence number is too new by [PCA11].
+        //     assert!(
+        //         txn_sequence_number == sender_account.sequence_number,
+        //         Errors::invalid_argument(PROLOGUE_ESEQUENCE_NUMBER_TOO_NEW)
+        //     );
 
-            // WARNING: No checks should be added here as the sequence number too new check should be the last check run
-            // by the prologue.
-        }
+        //     // WARNING: No checks should be added here as the sequence number too new check should be the last check run
+        //     // by the prologue.
+        // }
     }
     spec prologue_common {
-        let transaction_sender = Signer::address_of(sender);
-        let max_transaction_fee = txn_gas_price * txn_max_gas_units;
-        include PrologueCommonAbortsIf<Token> {
-            transaction_sender,
-            max_transaction_fee,
-        };
+        // let transaction_sender = Signer::address_of(sender);
+        // let max_transaction_fee = txn_gas_price * txn_max_gas_units;
+        // include PrologueCommonAbortsIf<Token> {
+        //     transaction_sender,
+        //     max_transaction_fee,
+        // };
     }
     spec schema PrologueCommonAbortsIf<Token> {
         transaction_sender: address;
