@@ -8,10 +8,10 @@ fn main() {
 
     let writes = [1.0];
     let reads = [1.0];
-    let acts = [1000, 5000, 10000, 50000, 100000, 500000];
+    let acts = [1000, 10000, 100000];
     let txns = [1000, 10000];
-    let num_warmups = 1;
-    let num_runs = 2;
+    let num_warmups = 2;
+    let num_runs = 10;
 
     let mut measurements = Vec::new();
 
@@ -47,8 +47,16 @@ fn main() {
                         write_rate, read_rate, num_accounts, block_size
                     );
                     println!(
-                        "TIMES: (parallel exec, r/w inference) = {:?}",
+                        "TIMES: parallel exec = {:?}",
                         measurements[i]
+                    );
+                    let mut sum = 0;
+                    for (m, _) in &measurements[i] {
+                        sum += m;
+                    }
+                    println!(
+                        "AVG TIMES = {:?}",
+                        sum / measurements[i].len()
                     );
                     i = i + 1;
                 }
