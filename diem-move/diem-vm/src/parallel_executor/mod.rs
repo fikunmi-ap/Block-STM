@@ -121,7 +121,7 @@ impl ParallelDiemVM {
         state_view: &S,
         write_keep_rate: f32,
         read_keep_rate: f32,
-    ) -> (usize, usize) {
+    ) -> usize {
         let blockchain_view = RemoteStorage::new(state_view);
         let mut analyzer = ReadWriteSetAnalysisWrapper::new(analysis_result, &blockchain_view);
 
@@ -151,6 +151,7 @@ impl ParallelDiemVM {
 
         drop(useless);
 
-        (exec_t.as_millis() as usize, analysis_time)
+        // (exec_t.as_millis() as usize, analysis_time)
+        (transactions.len() * 1000 / exec_t.as_millis() as usize) as usize
     }
 }

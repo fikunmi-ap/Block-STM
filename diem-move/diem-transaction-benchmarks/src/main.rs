@@ -47,15 +47,15 @@ fn main() {
                         write_rate, read_rate, num_accounts, block_size
                     );
                     println!(
-                        "TIMES: parallel exec = {:?}",
+                        "TPS: parallel exec = {:?}",
                         measurements[i]
                     );
                     let mut sum = 0;
-                    for (m, _) in &measurements[i] {
+                    for m in &measurements[i] {
                         sum += m;
                     }
                     println!(
-                        "AVG TIMES = {:?}",
+                        "AVG TPS = {:?}",
                         sum / measurements[i].len()
                     );
                     i = i + 1;

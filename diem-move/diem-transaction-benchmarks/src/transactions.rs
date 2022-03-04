@@ -107,7 +107,7 @@ where
         read_keep_rate: f32,
         num_warmups: usize,
         num_runs: usize,
-    ) -> Vec<(usize, usize)> {
+    ) -> Vec<usize> {
         let mut ret = Vec::new();
 
         let total_runs = num_warmups + num_runs;
@@ -121,21 +121,21 @@ where
             );
 
             if i < num_warmups {
-                println!("WARMUP - ignore reults");
+                // println!("WARMUP - ignore reults");
                 state.execute();
             } else {
-                println!(
-                    "RUN bencher for: num_threads = {}, \
-                          block_size = {}, \
-                          num_account = {}, \
-                          write_rate = {:?}, \
-                          read_rate = {:?}",
-                    num_cpus::get(),
-                    num_txn,
-                    num_accounts,
-                    write_keep_rate,
-                    read_keep_rate,
-                );
+                // println!(
+                //     "RUN bencher for: num_threads = {}, \
+                //           block_size = {}, \
+                //           num_account = {}, \
+                //           write_rate = {:?}, \
+                //           read_rate = {:?}",
+                //     num_cpus::get(),
+                //     num_txn,
+                //     num_accounts,
+                //     write_keep_rate,
+                //     read_keep_rate,
+                // );
                 ret.push(state.execute());
             }
         }
@@ -296,7 +296,7 @@ impl ParallelBenchState {
         }
     }
 
-    fn execute(self) -> (usize, usize) {
+    fn execute(self) -> usize {
         let txns = self
             .bench_state
             .transactions;
