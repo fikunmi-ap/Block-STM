@@ -20,6 +20,7 @@ use std::{
         Arc,
     },
 };
+use std::time::Instant;
 
 pub struct MVHashMapView<'a, K, V> {
     map: &'a MVHashMap<K, V>,
@@ -78,9 +79,9 @@ where
         &self,
         task_initial_arguments: E::Argument,
         signature_verified_block: Vec<T>,
-    ) -> Result<Vec<E::Output>, E::Error> {
+    ) -> (Result<Vec<E::Output>, E::Error>, usize) {
         if signature_verified_block.is_empty() {
-            return Ok(vec![]);
+            return (Ok(vec![]), 0);
         }
         let num_txns = signature_verified_block.len();
         let chunks_size = max(1, num_txns / self.num_cpus);
@@ -102,6 +103,7 @@ where
 
         let infer_result = self.inferencer.result(&signature_verified_block);
 
+        let timer = Instant::now();
         // Use write analysis result to construct placeholders.
         let path_version_tuples: Vec<(T::Key, usize)> = infer_result
             .par_iter()
@@ -123,8 +125,10 @@ where
         let (versioned_data_cache, max_dependency_level) =
             MVHashMap::new_from_parallel(path_version_tuples);
 
+        let prepare_time = timer.elapsed();
+
         if max_dependency_level == 0 {
-            return Err(Error::InferencerError);
+            return (Err(Error::InferencerError), 0);
         }
 
         let outcomes = OutcomeArray::new(num_txns);
@@ -232,6 +236,6 @@ where
             drop(versioned_data_cache);
         });
 
-        outcomes.get_all_results(valid_results_length)
+        (outcomes.get_all_results(valid_results_length), prepare_time.as_millis() as usize)
     }
 }

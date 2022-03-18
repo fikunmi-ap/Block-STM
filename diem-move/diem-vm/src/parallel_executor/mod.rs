@@ -100,7 +100,7 @@ impl ParallelDiemVM {
 
         let ret = match executor.execute_transactions_parallel(state_view, signature_verified_block)
         {
-            Ok(results) => {
+            (Ok(results), _) => {
                 Ok((
                     results
                         .into_iter()
@@ -112,14 +112,14 @@ impl ParallelDiemVM {
                 // drop(transactions);
                 // println!("DROP TXN {:?}", timer1.elapsed());
             }
-            Err(_err @ Error::InferencerError) | Err(_err @ Error::UnestimatedWrite) => {
+            (Err(_err @ Error::InferencerError), _) | (Err(_err @ Error::UnestimatedWrite), _) => {
                 panic!();
                 // Ok((DiemVM::execute_block(transactions, state_view)?, Some(err)))
             }
-            Err(Error::InvariantViolation) => Err(VMStatus::Error(
+            (Err(Error::InvariantViolation), _) => Err(VMStatus::Error(
                 StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR,
             )),
-            Err(Error::UserError(err)) => Err(err),
+            (Err(Error::UserError(err)), _) => Err(err),
         };
         // drop(executor);
         // drop(blockchain_view);
@@ -134,7 +134,7 @@ impl ParallelDiemVM {
         state_view: &S,
         write_keep_rate: f32,
         read_keep_rate: f32,
-    ) -> (usize, usize) {
+    ) -> (usize, usize, usize) {
         let blockchain_view = RemoteStorage::new(state_view);
         let mut analyzer = ReadWriteSetAnalysisWrapper::new(analysis_result, &blockchain_view);
 
@@ -159,14 +159,15 @@ impl ParallelDiemVM {
         >::new(analyzer);
 
         let timer = Instant::now();
-        let useless = executor.execute_transactions_parallel(state_view, signature_verified_block);
+        let (useless, prepare_time) = executor.execute_transactions_parallel(state_view, signature_verified_block);
         let exec_t = timer.elapsed();
 
         drop(useless);
 
         // (exec_t.as_millis() as usize, analysis_time)
-        let exec_tps = (transactions.len() * 1000 / exec_t.as_millis() as usize) as usize;
+        let only_exec_tps = (transactions.len() * 1000 / (exec_t.as_millis() as usize - prepare_time)) as usize;
+        let total_exec_tps = (transactions.len() * 1000 / exec_t.as_millis() as usize) as usize;
         let exec_and_analysis_tps = (transactions.len() * 1000 / (exec_t.as_millis() as usize + analysis_time)) as usize;
-        (exec_tps, exec_and_analysis_tps)
+        (only_exec_tps, total_exec_tps, exec_and_analysis_tps)
     }
 }

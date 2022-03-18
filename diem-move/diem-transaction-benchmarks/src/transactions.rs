@@ -102,7 +102,7 @@ where
         read_keep_rate: f32,
         num_warmups: usize,
         num_runs: usize,
-    ) -> Vec<(usize, usize)> {
+    ) -> Vec<(usize, usize, usize)> {
         let mut ret = Vec::new();
 
         let total_runs = num_warmups + num_runs;
@@ -261,7 +261,7 @@ impl ParallelBenchState {
         }
     }
 
-    fn execute(self) -> (usize, usize) {
+    fn execute(self) -> (usize, usize, usize) {
         let txns = self
             .bench_state
             .transactions

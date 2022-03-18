@@ -52,16 +52,21 @@ fn main() {
                     );
                     let mut sum1 = 0;
                     let mut sum2 = 0;
+                    let mut sum3 = 0;
                     for m in &measurements[i] {
                         sum1 += m.0;
                     }
                     for m in &measurements[i] {
                         sum2 += m.1;
                     }
+                    for m in &measurements[i] {
+                        sum3 += m.2;
+                    }
                     println!(
-                        "AVG TPS: (only parallel, with inference) = {:?}, {:?}",
+                        "AVG TPS: (only execution, total execution, with inference) = {:?}, {:?}, {:?}",
                         sum1 / measurements[i].len(),
                         sum2 / measurements[i].len(),
+                        sum3 / measurements[i].len(),
                     );
                     i = i + 1;
                 }
