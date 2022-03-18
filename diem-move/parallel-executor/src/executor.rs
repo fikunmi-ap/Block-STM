@@ -86,19 +86,21 @@ where
         let chunks_size = max(1, num_txns / self.num_cpus);
 
         // Get the read and write dependency for each transaction.
-        let infer_result: Vec<_> = {
-            match signature_verified_block
-                .par_iter()
-                .with_min_len(chunks_size)
-                .map(|txn| self.inferencer.infer_reads_writes(txn))
-                .collect::<AResult<Vec<_>>>()
-            {
-                Ok(res) => res,
-                // Inferencer passed in by user failed to get the read/writeset of a transaction,
-                // abort parallel execution.
-                Err(_) => return Err(Error::InferencerError),
-            }
-        };
+        // let infer_result: Vec<_> = {
+        //     match signature_verified_block
+        //         .par_iter()
+        //         .with_min_len(chunks_size)
+        //         .map(|txn| self.inferencer.infer_reads_writes(txn))
+        //         .collect::<AResult<Vec<_>>>()
+        //     {
+        //         Ok(res) => res,
+        //         // Inferencer passed in by user failed to get the read/writeset of a transaction,
+        //         // abort parallel execution.
+        //         Err(_) => return Err(Error::InferencerError),
+        //     }
+        // };
+
+        let infer_result = self.inferencer.result(&signature_verified_block);
 
         // Use write analysis result to construct placeholders.
         let path_version_tuples: Vec<(T::Key, usize)> = infer_result

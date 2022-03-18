@@ -2,13 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use criterion::{measurement::Measurement, BatchSize, Bencher};
-use diem_crypto::HashValue;
-use diem_types::{
-    block_metadata::BlockMetadata,
-    on_chain_config::{OnChainConfig, ValidatorSet},
-    transaction::Transaction,
-};
-use diem_vm::{DiemVM, VMExecutor};
+use diem_framework_releases::current_modules;
+use diem_types::transaction::{SignedTransaction, Transaction};
+use diem_vm::{parallel_executor::ParallelDiemVM, read_write_set_analysis::add_on_functions_list};
 use language_e2e_tests::{
     account_universe::{log_balance_strategy, AUTransactionGen, AccountUniverseGen},
     executor::FakeExecutor,
@@ -19,6 +15,9 @@ use proptest::{
     strategy::{Strategy, ValueTree},
     test_runner::TestRunner,
 };
+use read_write_set::analyze;
+use read_write_set_dynamic::NormalizedReadWriteSetAnalysis;
+// use std::time::Instant;
 
 /// Benchmarking support for transactions.
 #[derive(Clone, Debug)]
@@ -80,16 +79,63 @@ where
     pub fn bench_parallel<M: Measurement>(&self, b: &mut Bencher<M>) {
         b.iter_batched(
             || {
-                TransactionBenchState::with_size_parallel(
+                ParallelBenchState::with_size(
                     &self.strategy,
                     self.num_accounts,
                     self.num_transactions,
+                    1.0,
+                    1.0,
                 )
             },
             |state| state.execute(),
             // The input here is the entire list of signed transactions, so it's pretty large.
             BatchSize::LargeInput,
         )
+    }
+
+    /// Runs the bencher.
+    pub fn manual_parallel(
+        &self,
+        num_accounts: usize,
+        num_txn: usize,
+        write_keep_rate: f32,
+        read_keep_rate: f32,
+        num_warmups: usize,
+        num_runs: usize,
+    ) -> Vec<(usize, usize)> {
+        let mut ret = Vec::new();
+
+        let total_runs = num_warmups + num_runs;
+        for i in 0..total_runs {
+            let state = ParallelBenchState::with_size(
+                &self.strategy,
+                num_accounts,
+                num_txn,
+                write_keep_rate,
+                read_keep_rate,
+            );
+
+            if i < num_warmups {
+                println!("WARMUP - ignore results");
+                state.execute();
+            } else {
+                println!(
+                    "RUN bencher for: num_threads = {}, \
+                          block_size = {}, \
+                          num_account = {}, \
+                          write_rate = {:?}, \
+                          read_rate = {:?}",
+                    num_cpus::get(),
+                    num_txn,
+                    num_accounts,
+                    write_keep_rate,
+                    read_keep_rate,
+                );
+                ret.push(state.execute());
+            }
+        }
+
+        ret
     }
 }
 
@@ -105,7 +151,7 @@ struct TransactionBenchState {
     // 6. Add an enum to TransactionBencher that lets callers choose between the fake and real
     //    executors.
     executor: FakeExecutor,
-    transactions: Vec<Transaction>,
+    transactions: Vec<SignedTransaction>,
 }
 
 impl TransactionBenchState {
@@ -151,7 +197,7 @@ impl TransactionBenchState {
             .current();
         let transactions = transaction_gens
             .into_iter()
-            .map(|txn_gen| Transaction::UserTransaction(txn_gen.apply(&mut universe).0))
+            .map(|txn_gen| txn_gen.apply(&mut universe).0)
             .collect();
 
         Self {
@@ -164,39 +210,9 @@ impl TransactionBenchState {
     fn execute(self) {
         // The output is ignored here since we're just testing transaction performance, not trying
         // to assert correctness.
-        DiemVM::execute_block(self.transactions, self.executor.get_state_view())
+        self.executor
+            .execute_block(self.transactions)
             .expect("VM should not fail to start");
-    }
-
-    fn with_size_parallel<S>(strategy: S, num_accounts: usize, num_transactions: usize) -> Self
-    where
-        S: Strategy,
-        S::Value: AUTransactionGen,
-    {
-        let mut state = Self::with_universe(
-            strategy,
-            universe_strategy(num_accounts, num_transactions),
-            num_transactions,
-        );
-        state.executor.enable_parallel_execution();
-
-        // Insert a blockmetadata transaction at the beginning to better simulate the real life traffic.
-        let validator_set = ValidatorSet::fetch_config(state.executor.get_state_view())
-            .expect("Unable to retrieve the validator set from storage");
-
-        let new_block = BlockMetadata::new(
-            HashValue::zero(),
-            0,
-            1,
-            vec![],
-            *validator_set.payload()[0].account_address(),
-        );
-
-        state
-            .transactions
-            .insert(0, Transaction::BlockMetadata(new_block));
-
-        state
     }
 }
 
@@ -209,4 +225,58 @@ fn universe_strategy(
     let max_balance = TXN_RESERVED * num_transactions as u64 * 5;
     let balance_strategy = log_balance_strategy(max_balance);
     AccountUniverseGen::strategy(num_accounts, balance_strategy)
+}
+
+struct ParallelBenchState {
+    bench_state: TransactionBenchState,
+    infer_results: NormalizedReadWriteSetAnalysis,
+    write_keep_rate: f32,
+    read_keep_rate: f32,
+}
+
+impl ParallelBenchState {
+    /// Creates a new benchmark state with the given number of accounts and transactions.
+    fn with_size<S>(
+        strategy: S,
+        num_accounts: usize,
+        num_transactions: usize,
+        write_keep_rate: f32,
+        read_keep_rate: f32,
+    ) -> Self
+    where
+        S: Strategy,
+        S::Value: AUTransactionGen,
+    {
+        Self {
+            bench_state: TransactionBenchState::with_universe(
+                strategy,
+                universe_strategy(num_accounts, num_transactions),
+                num_transactions,
+            ),
+            infer_results: analyze(current_modules().iter())
+                .unwrap()
+                .normalize_all_scripts(add_on_functions_list()),
+            write_keep_rate,
+            read_keep_rate,
+        }
+    }
+
+    fn execute(self) -> (usize, usize) {
+        let txns = self
+            .bench_state
+            .transactions
+            .into_iter()
+            .map(Transaction::UserTransaction)
+            .collect();
+        let state_view = self.bench_state.executor.get_state_view();
+        // measured - microseconds.
+
+        ParallelDiemVM::execute_block_tps(
+            &self.infer_results,
+            txns,
+            state_view,
+            self.write_keep_rate,
+            self.read_keep_rate,
+        )
+    }
 }
