@@ -59,7 +59,7 @@ fn main() {
                         sum2 += m.1;
                     }
                     println!(
-                        "AVG TPS: (only parallel, with inference) = {:?}, {:?}",
+                        "AVG TPS: (only parallel, with inference) = {:?},{:?}",
                         sum1 / measurements[i].len(),
                         sum2 / measurements[i].len(),
                     );
