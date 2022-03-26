@@ -16,7 +16,7 @@ Run sequential baseline:
 5. `cd ../diem-transaction-benchmarks/benches`
 6. `cargo bench peer_to_peer`
 
-Use `taskset` commands to run experiments with different threads number. Change the parameters in `diem-move/diem-transaction-benchmarks/src/transactions.rs`.
+Change the parameters in `diem-move/diem-transaction-benchmarks/src/transactions.rs`.
 
 ---
 
