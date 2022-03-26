@@ -1,7 +1,9 @@
 Run Bohm:
 1. `./scripts/dev_setup.sh`
-2. `cd diem-move/diem-transaction-benchmarks/src`
-3. `cargo run --release main`
+2. `cd diem-move/diem-framework`
+3. `cargo run`
+5. `cd ../diem-transaction-benchmarks/src`
+6. `cargo run --release main`
 
 Use `taskset` commands to run experiments with different threads number.
 
