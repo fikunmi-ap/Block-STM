@@ -5,7 +5,18 @@ Run LiTM:
 5. `cd ../diem-transaction-benchmarks/src`
 6. `cargo run --release main`
 
-Use `taskset` commands to run experiments with different threads number.
+Use `taskset` commands to run experiments with different threads number. Change the parameters in `diem-move/diem-transaction-benchmarks/src/main.rs`.
+
+---
+
+Run sequential baseline:
+1. `./scripts/dev_setup.sh`
+2. `cd diem-move/diem-framework`
+3. `cargo run`
+5. `cd ../diem-transaction-benchmarks/benches`
+6. `cargo bench peer_to_peer`
+
+Use `taskset` commands to run experiments with different threads number. Change the parameters in `diem-move/diem-transaction-benchmarks/src/transactions.rs`.
 
 ---
 
