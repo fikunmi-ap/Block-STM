@@ -5,7 +5,7 @@ Run LiTM:
 5. `cd ../diem-transaction-benchmarks/src`
 6. `cargo run --release main`
 
-Use `taskset` commands to run experiments with different threads number. Change the parameters in `diem-move/diem-transaction-benchmarks/src/main.rs`.
+Use `taskset` commands to run experiments with different threads number. Set parameters in `diem-move/diem-transaction-benchmarks/src/main.rs`.
 
 ---
 
