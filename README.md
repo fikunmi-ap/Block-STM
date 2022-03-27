@@ -5,7 +5,7 @@ Run LiTM with simplified p2p transactions:
 5. `cd ../diem-transaction-benchmarks/src`
 6. `cargo run --release main`
 
-Use `taskset` commands to run experiments with different threads number.
+Use `taskset` commands to run experiments with different threads number. Set parameters in `diem-move/diem-transaction-benchmarks/src/main.rs`.
 
 ---
 
@@ -16,7 +16,7 @@ Run sequential baseline with simplified p2p transactions:
 5. `cd ../diem-transaction-benchmarks/benches`
 6. `cargo bench peer_to_peer`
 
-Change the parameters in `diem-move/diem-transaction-benchmarks/src/transactions.rs`.
+Set parameters in `diem-move/diem-transaction-benchmarks/src/transactions.rs`.
 
 ---
 
