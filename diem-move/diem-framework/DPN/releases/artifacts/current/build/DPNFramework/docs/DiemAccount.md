@@ -89,7 +89,6 @@ before and after every transaction.
 <b>use</b> <a href="AccountLimits.md#0x1_AccountLimits">0x1::AccountLimits</a>;
 <b>use</b> <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/BCS.md#0x1_BCS">0x1::BCS</a>;
 <b>use</b> <a href="CRSN.md#0x1_CRSN">0x1::CRSN</a>;
-<b>use</b> <a href="ChainId.md#0x1_ChainId">0x1::ChainId</a>;
 <b>use</b> <a href="CoreAddresses.md#0x1_CoreAddresses">0x1::CoreAddresses</a>;
 <b>use</b> <a href="DesignatedDealer.md#0x1_DesignatedDealer">0x1::DesignatedDealer</a>;
 <b>use</b> <a href="Diem.md#0x1_Diem">0x1::Diem</a>;
@@ -99,7 +98,6 @@ before and after every transaction.
 <b>use</b> <a href="DualAttestation.md#0x1_DualAttestation">0x1::DualAttestation</a>;
 <b>use</b> <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Errors.md#0x1_Errors">0x1::Errors</a>;
 <b>use</b> <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Event.md#0x1_Event">0x1::Event</a>;
-<b>use</b> <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Hash.md#0x1_Hash">0x1::Hash</a>;
 <b>use</b> <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Option.md#0x1_Option">0x1::Option</a>;
 <b>use</b> <a href="Roles.md#0x1_Roles">0x1::Roles</a>;
 <b>use</b> <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Signer.md#0x1_Signer">0x1::Signer</a>;
@@ -1009,7 +1007,7 @@ Depending on the <code>is_withdrawal</code> flag passed in we determine whether 
 Record a payment of <code>to_deposit</code> from <code>payer</code> to <code>payee</code> with the attached <code>metadata</code>
 
 
-<pre><code><b>fun</b> <a href="DiemAccount.md#0x1_DiemAccount_deposit">deposit</a>&lt;Token&gt;(payer: <b>address</b>, payee: <b>address</b>, to_deposit: <a href="Diem.md#0x1_Diem_Diem">Diem::Diem</a>&lt;Token&gt;, metadata: vector&lt;u8&gt;, metadata_signature: vector&lt;u8&gt;, dual_attestation: bool)
+<pre><code><b>fun</b> <a href="DiemAccount.md#0x1_DiemAccount_deposit">deposit</a>&lt;Token&gt;(payer: <b>address</b>, payee: <b>address</b>, to_deposit: <a href="Diem.md#0x1_Diem_Diem">Diem::Diem</a>&lt;Token&gt;, metadata: vector&lt;u8&gt;, _metadata_signature: vector&lt;u8&gt;, _dual_attestation: bool)
 </code></pre>
 
 
@@ -1023,11 +1021,11 @@ Record a payment of <code>to_deposit</code> from <code>payer</code> to <code>pay
     payee: <b>address</b>,
     to_deposit: <a href="Diem.md#0x1_Diem">Diem</a>&lt;Token&gt;,
     metadata: vector&lt;u8&gt;,
-    metadata_signature: vector&lt;u8&gt;,
-    dual_attestation: bool,
-) <b>acquires</b> <a href="DiemAccount.md#0x1_DiemAccount">DiemAccount</a>, <a href="DiemAccount.md#0x1_DiemAccount_Balance">Balance</a>, <a href="DiemAccount.md#0x1_DiemAccount_AccountOperationsCapability">AccountOperationsCapability</a> {
-    <a href="DiemTimestamp.md#0x1_DiemTimestamp_assert_operating">DiemTimestamp::assert_operating</a>();
-    <a href="AccountFreezing.md#0x1_AccountFreezing_assert_not_frozen">AccountFreezing::assert_not_frozen</a>(payee);
+    _metadata_signature: vector&lt;u8&gt;,
+    _dual_attestation: bool,
+) <b>acquires</b> <a href="DiemAccount.md#0x1_DiemAccount">DiemAccount</a>, <a href="DiemAccount.md#0x1_DiemAccount_Balance">Balance</a> {
+    // <a href="DiemTimestamp.md#0x1_DiemTimestamp_assert_operating">DiemTimestamp::assert_operating</a>();
+    // <a href="AccountFreezing.md#0x1_AccountFreezing_assert_not_frozen">AccountFreezing::assert_not_frozen</a>(payee);
 
     // Check that the `to_deposit` coin is non-zero
     <b>let</b> deposit_value = <a href="Diem.md#0x1_Diem_value">Diem::value</a>(&to_deposit);
@@ -1040,25 +1038,25 @@ Record a payment of <code>to_deposit</code> from <code>payer</code> to <code>pay
         <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Errors.md#0x1_Errors_invalid_argument">Errors::invalid_argument</a>(<a href="DiemAccount.md#0x1_DiemAccount_EPAYEE_CANT_ACCEPT_CURRENCY_TYPE">EPAYEE_CANT_ACCEPT_CURRENCY_TYPE</a>)
     );
 
-    <b>if</b> (dual_attestation) {
-        // Check that the payment complies <b>with</b> dual attestation rules
-        <a href="DualAttestation.md#0x1_DualAttestation_assert_payment_ok">DualAttestation::assert_payment_ok</a>&lt;Token&gt;(
-            payer, payee, deposit_value, <b>copy</b> metadata, metadata_signature
-        );
-    };
+    // <b>if</b> (dual_attestation) {
+    //     // Check that the payment complies <b>with</b> dual attestation rules
+    //     <a href="DualAttestation.md#0x1_DualAttestation_assert_payment_ok">DualAttestation::assert_payment_ok</a>&lt;Token&gt;(
+    //         payer, payee, deposit_value, <b>copy</b> metadata, metadata_signature
+    //     );
+    // };
 
-    // Ensure that this deposit is compliant <b>with</b> the account limits on
-    // this account.
-    <b>if</b> (<a href="DiemAccount.md#0x1_DiemAccount_should_track_limits_for_account">should_track_limits_for_account</a>&lt;Token&gt;(payer, payee, <b>false</b>)) {
-        <b>assert</b>!(
-            <a href="AccountLimits.md#0x1_AccountLimits_update_deposit_limits">AccountLimits::update_deposit_limits</a>&lt;Token&gt;(
-                deposit_value,
-                <a href="VASP.md#0x1_VASP_parent_address">VASP::parent_address</a>(payee),
-                &<b>borrow_global</b>&lt;<a href="DiemAccount.md#0x1_DiemAccount_AccountOperationsCapability">AccountOperationsCapability</a>&gt;(@DiemRoot).limits_cap
-            ),
-            <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Errors.md#0x1_Errors_limit_exceeded">Errors::limit_exceeded</a>(<a href="DiemAccount.md#0x1_DiemAccount_EDEPOSIT_EXCEEDS_LIMITS">EDEPOSIT_EXCEEDS_LIMITS</a>)
-        )
-    };
+    // // Ensure that this deposit is compliant <b>with</b> the account limits on
+    // // this account.
+    // <b>if</b> (<a href="DiemAccount.md#0x1_DiemAccount_should_track_limits_for_account">should_track_limits_for_account</a>&lt;Token&gt;(payer, payee, <b>false</b>)) {
+    //     <b>assert</b>!(
+    //         <a href="AccountLimits.md#0x1_AccountLimits_update_deposit_limits">AccountLimits::update_deposit_limits</a>&lt;Token&gt;(
+    //             deposit_value,
+    //             <a href="VASP.md#0x1_VASP_parent_address">VASP::parent_address</a>(payee),
+    //             &<b>borrow_global</b>&lt;<a href="DiemAccount.md#0x1_DiemAccount_AccountOperationsCapability">AccountOperationsCapability</a>&gt;(@DiemRoot).limits_cap
+    //         ),
+    //         <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Errors.md#0x1_Errors_limit_exceeded">Errors::limit_exceeded</a>(<a href="DiemAccount.md#0x1_DiemAccount_EDEPOSIT_EXCEEDS_LIMITS">EDEPOSIT_EXCEEDS_LIMITS</a>)
+    //     )
+    // };
 
     // Deposit the `to_deposit` coin
     <a href="Diem.md#0x1_Diem_deposit">Diem::deposit</a>(&<b>mut</b> <b>borrow_global_mut</b>&lt;<a href="DiemAccount.md#0x1_DiemAccount_Balance">Balance</a>&lt;Token&gt;&gt;(payee).coin, to_deposit);
@@ -1094,7 +1092,6 @@ Record a payment of <code>to_deposit</code> from <code>payer</code> to <code>pay
 <b>include</b> <a href="DiemAccount.md#0x1_DiemAccount_DepositOverflowAbortsIf">DepositOverflowAbortsIf</a>&lt;Token&gt;{amount: amount};
 <b>include</b> <a href="DiemAccount.md#0x1_DiemAccount_DepositEnsures">DepositEnsures</a>&lt;Token&gt;{amount: amount};
 <b>include</b> <a href="DiemAccount.md#0x1_DiemAccount_DepositEmits">DepositEmits</a>&lt;Token&gt;{amount: amount};
-<b>include</b> dual_attestation ==&gt; <a href="DualAttestation.md#0x1_DualAttestation_AssertPaymentOkAbortsIf">DualAttestation::AssertPaymentOkAbortsIf</a>&lt;Token&gt;{value: amount};
 </code></pre>
 
 
@@ -1226,7 +1223,7 @@ Sender should be treasury compliance account and receiver authorized DD.
     designated_dealer_address: <b>address</b>,
     mint_amount: u64,
     tier_index: u64,
-) <b>acquires</b> <a href="DiemAccount.md#0x1_DiemAccount">DiemAccount</a>, <a href="DiemAccount.md#0x1_DiemAccount_Balance">Balance</a>, <a href="DiemAccount.md#0x1_DiemAccount_AccountOperationsCapability">AccountOperationsCapability</a> {
+) <b>acquires</b> <a href="DiemAccount.md#0x1_DiemAccount">DiemAccount</a>, <a href="DiemAccount.md#0x1_DiemAccount_Balance">Balance</a> {
     <a href="Roles.md#0x1_Roles_assert_treasury_compliance">Roles::assert_treasury_compliance</a>(tc_account);
     <b>let</b> coin = <a href="DesignatedDealer.md#0x1_DesignatedDealer_tiered_mint">DesignatedDealer::tiered_mint</a>&lt;Token&gt;(
         tc_account, mint_amount, designated_dealer_address, tier_index
@@ -1354,7 +1351,7 @@ The balance of designated dealer increases by <code>amount</code>.
     account: &signer,
     preburn_address: <b>address</b>,
     amount: u64,
-) <b>acquires</b> <a href="DiemAccount.md#0x1_DiemAccount">DiemAccount</a>, <a href="DiemAccount.md#0x1_DiemAccount_Balance">Balance</a>, <a href="DiemAccount.md#0x1_DiemAccount_AccountOperationsCapability">AccountOperationsCapability</a> {
+) <b>acquires</b> <a href="DiemAccount.md#0x1_DiemAccount">DiemAccount</a>, <a href="DiemAccount.md#0x1_DiemAccount_Balance">Balance</a> {
     <b>let</b> coin = <a href="Diem.md#0x1_Diem_cancel_burn">Diem::cancel_burn</a>&lt;Token&gt;(account, preburn_address, amount);
     // record both sender and recipient <b>as</b> `preburn_address`: the coins are moving from
     // `preburn_address`'s `Preburn` resource <b>to</b> its balance
@@ -3790,7 +3787,7 @@ The prologue for module transaction
     txn_max_gas_units: u64,
     txn_expiration_time: u64,
     chain_id: u8,
-) <b>acquires</b> <a href="DiemAccount.md#0x1_DiemAccount">DiemAccount</a>, <a href="DiemAccount.md#0x1_DiemAccount_Balance">Balance</a> {
+) {
     <b>assert</b>!(
         <a href="DiemTransactionPublishingOption.md#0x1_DiemTransactionPublishingOption_is_module_allowed">DiemTransactionPublishingOption::is_module_allowed</a>(&sender),
         <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Errors.md#0x1_Errors_invalid_state">Errors::invalid_state</a>(<a href="DiemAccount.md#0x1_DiemAccount_PROLOGUE_EMODULE_NOT_ALLOWED">PROLOGUE_EMODULE_NOT_ALLOWED</a>),
@@ -3880,7 +3877,7 @@ Covered: L75 (Match 9)
 The prologue for script transaction
 
 
-<pre><code><b>fun</b> <a href="DiemAccount.md#0x1_DiemAccount_script_prologue">script_prologue</a>&lt;Token&gt;(sender: signer, txn_sequence_number: u64, txn_public_key: vector&lt;u8&gt;, txn_gas_price: u64, txn_max_gas_units: u64, txn_expiration_time: u64, chain_id: u8, script_hash: vector&lt;u8&gt;)
+<pre><code><b>fun</b> <a href="DiemAccount.md#0x1_DiemAccount_script_prologue">script_prologue</a>&lt;Token&gt;(sender: signer, txn_sequence_number: u64, txn_public_key: vector&lt;u8&gt;, txn_gas_price: u64, txn_max_gas_units: u64, txn_expiration_time: u64, chain_id: u8, _script_hash: vector&lt;u8&gt;)
 </code></pre>
 
 
@@ -3897,12 +3894,12 @@ The prologue for script transaction
     txn_max_gas_units: u64,
     txn_expiration_time: u64,
     chain_id: u8,
-    script_hash: vector&lt;u8&gt;,
-) <b>acquires</b> <a href="DiemAccount.md#0x1_DiemAccount">DiemAccount</a>, <a href="DiemAccount.md#0x1_DiemAccount_Balance">Balance</a> {
-    <b>assert</b>!(
-        <a href="DiemTransactionPublishingOption.md#0x1_DiemTransactionPublishingOption_is_script_allowed">DiemTransactionPublishingOption::is_script_allowed</a>(&sender, &script_hash),
-        <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Errors.md#0x1_Errors_invalid_state">Errors::invalid_state</a>(<a href="DiemAccount.md#0x1_DiemAccount_PROLOGUE_ESCRIPT_NOT_ALLOWED">PROLOGUE_ESCRIPT_NOT_ALLOWED</a>),
-    );
+    _script_hash: vector&lt;u8&gt;,
+) {
+    // <b>assert</b>!(
+    //     <a href="DiemTransactionPublishingOption.md#0x1_DiemTransactionPublishingOption_is_script_allowed">DiemTransactionPublishingOption::is_script_allowed</a>(&sender, &script_hash),
+    //     <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Errors.md#0x1_Errors_invalid_state">Errors::invalid_state</a>(<a href="DiemAccount.md#0x1_DiemAccount_PROLOGUE_ESCRIPT_NOT_ALLOWED">PROLOGUE_ESCRIPT_NOT_ALLOWED</a>),
+    // );
 
     <a href="DiemAccount.md#0x1_DiemAccount_prologue_common">prologue_common</a>&lt;Token&gt;(
         &sender,
@@ -3927,10 +3924,6 @@ The prologue for script transaction
 
 <pre><code><b>let</b> transaction_sender = <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Signer.md#0x1_Signer_address_of">Signer::address_of</a>(sender);
 <b>let</b> max_transaction_fee = txn_gas_price * txn_max_gas_units;
-<b>include</b> <a href="DiemAccount.md#0x1_DiemAccount_ScriptPrologueAbortsIf">ScriptPrologueAbortsIf</a>&lt;Token&gt;{
-    max_transaction_fee,
-    txn_expiration_time_seconds: txn_expiration_time,
-};
 <b>ensures</b> <a href="DiemAccount.md#0x1_DiemAccount_prologue_guarantees">prologue_guarantees</a>(sender);
 </code></pre>
 
@@ -3997,7 +3990,7 @@ The prologue for WriteSet transaction
     txn_public_key: vector&lt;u8&gt;,
     txn_expiration_time: u64,
     chain_id: u8,
-) <b>acquires</b> <a href="DiemAccount.md#0x1_DiemAccount">DiemAccount</a>, <a href="DiemAccount.md#0x1_DiemAccount_Balance">Balance</a> {
+) {
     <b>assert</b>!(
         <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Signer.md#0x1_Signer_address_of">Signer::address_of</a>(&sender) == @DiemRoot,
         <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Errors.md#0x1_Errors_invalid_argument">Errors::invalid_argument</a>(<a href="DiemAccount.md#0x1_DiemAccount_PROLOGUE_EINVALID_WRITESET_SENDER">PROLOGUE_EINVALID_WRITESET_SENDER</a>)
@@ -4178,7 +4171,7 @@ Covered: L146 (Match 0)
 The prologue for multi-agent user transactions
 
 
-<pre><code><b>fun</b> <a href="DiemAccount.md#0x1_DiemAccount_multi_agent_script_prologue">multi_agent_script_prologue</a>&lt;Token&gt;(sender: signer, txn_sequence_number: u64, txn_sender_public_key: vector&lt;u8&gt;, secondary_signer_addresses: vector&lt;<b>address</b>&gt;, secondary_signer_public_key_hashes: vector&lt;vector&lt;u8&gt;&gt;, txn_gas_price: u64, txn_max_gas_units: u64, txn_expiration_time: u64, chain_id: u8)
+<pre><code><b>fun</b> <a href="DiemAccount.md#0x1_DiemAccount_multi_agent_script_prologue">multi_agent_script_prologue</a>&lt;Token&gt;(sender: signer, txn_sequence_number: u64, txn_sender_public_key: vector&lt;u8&gt;, _secondary_signer_addresses: vector&lt;<b>address</b>&gt;, _secondary_signer_public_key_hashes: vector&lt;vector&lt;u8&gt;&gt;, txn_gas_price: u64, txn_max_gas_units: u64, txn_expiration_time: u64, chain_id: u8)
 </code></pre>
 
 
@@ -4191,17 +4184,17 @@ The prologue for multi-agent user transactions
     sender: signer,
     txn_sequence_number: u64,
     txn_sender_public_key: vector&lt;u8&gt;,
-    secondary_signer_addresses: vector&lt;<b>address</b>&gt;,
-    secondary_signer_public_key_hashes: vector&lt;vector&lt;u8&gt;&gt;,
+    _secondary_signer_addresses: vector&lt;<b>address</b>&gt;,
+    _secondary_signer_public_key_hashes: vector&lt;vector&lt;u8&gt;&gt;,
     txn_gas_price: u64,
     txn_max_gas_units: u64,
     txn_expiration_time: u64,
     chain_id: u8,
-) <b>acquires</b> <a href="DiemAccount.md#0x1_DiemAccount">DiemAccount</a>, <a href="DiemAccount.md#0x1_DiemAccount_Balance">Balance</a> {
-    <a href="DiemAccount.md#0x1_DiemAccount_check_secondary_signers">check_secondary_signers</a>(
-        secondary_signer_addresses,
-        secondary_signer_public_key_hashes
-    );
+) {
+    // <a href="DiemAccount.md#0x1_DiemAccount_check_secondary_signers">check_secondary_signers</a>(
+    //     secondary_signer_addresses,
+    //     secondary_signer_public_key_hashes
+    // );
     <a href="DiemAccount.md#0x1_DiemAccount_prologue_common">prologue_common</a>&lt;Token&gt;(
         &sender,
         txn_sequence_number,
@@ -4225,10 +4218,6 @@ The prologue for multi-agent user transactions
 
 <pre><code><b>let</b> transaction_sender = <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Signer.md#0x1_Signer_address_of">Signer::address_of</a>(sender);
 <b>let</b> max_transaction_fee = txn_gas_price * txn_max_gas_units;
-<b>include</b> <a href="DiemAccount.md#0x1_DiemAccount_MultiAgentScriptPrologueAbortsIf">MultiAgentScriptPrologueAbortsIf</a>&lt;Token&gt;{
-    max_transaction_fee,
-    txn_expiration_time_seconds: txn_expiration_time,
-};
 <b>ensures</b> <a href="DiemAccount.md#0x1_DiemAccount_prologue_guarantees">prologue_guarantees</a>(sender);
 </code></pre>
 
@@ -4268,7 +4257,7 @@ The main properties that it verifies:
 - That the sequence number matches the transaction's sequence key
 
 
-<pre><code><b>fun</b> <a href="DiemAccount.md#0x1_DiemAccount_prologue_common">prologue_common</a>&lt;Token&gt;(sender: &signer, txn_sequence_number: u64, txn_public_key: vector&lt;u8&gt;, txn_gas_price: u64, txn_max_gas_units: u64, txn_expiration_time_seconds: u64, chain_id: u8)
+<pre><code><b>fun</b> <a href="DiemAccount.md#0x1_DiemAccount_prologue_common">prologue_common</a>&lt;Token&gt;(_sender: &signer, _txn_sequence_number: u64, _txn_public_key: vector&lt;u8&gt;, _txn_gas_price: u64, _txn_max_gas_units: u64, _txn_expiration_time_seconds: u64, _chain_id: u8)
 </code></pre>
 
 
@@ -4278,100 +4267,100 @@ The main properties that it verifies:
 
 
 <pre><code><b>fun</b> <a href="DiemAccount.md#0x1_DiemAccount_prologue_common">prologue_common</a>&lt;Token&gt;(
-    sender: &signer,
-    txn_sequence_number: u64,
-    txn_public_key: vector&lt;u8&gt;,
-    txn_gas_price: u64,
-    txn_max_gas_units: u64,
-    txn_expiration_time_seconds: u64,
-    chain_id: u8,
-) <b>acquires</b> <a href="DiemAccount.md#0x1_DiemAccount">DiemAccount</a>, <a href="DiemAccount.md#0x1_DiemAccount_Balance">Balance</a> {
-    <b>let</b> transaction_sender = <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Signer.md#0x1_Signer_address_of">Signer::address_of</a>(sender);
+    _sender: &signer,
+    _txn_sequence_number: u64,
+    _txn_public_key: vector&lt;u8&gt;,
+    _txn_gas_price: u64,
+    _txn_max_gas_units: u64,
+    _txn_expiration_time_seconds: u64,
+    _chain_id: u8,
+) {
+    // <b>let</b> transaction_sender = <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Signer.md#0x1_Signer_address_of">Signer::address_of</a>(sender);
 
-    // [PCA1]: Check that the chain ID stored on-chain matches the chain ID specified by the transaction
-    <b>assert</b>!(<a href="ChainId.md#0x1_ChainId_get">ChainId::get</a>() == chain_id, <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Errors.md#0x1_Errors_invalid_argument">Errors::invalid_argument</a>(<a href="DiemAccount.md#0x1_DiemAccount_PROLOGUE_EBAD_CHAIN_ID">PROLOGUE_EBAD_CHAIN_ID</a>));
+    // // [PCA1]: Check that the chain ID stored on-chain matches the chain ID specified by the transaction
+    // <b>assert</b>!(<a href="ChainId.md#0x1_ChainId_get">ChainId::get</a>() == chain_id, <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Errors.md#0x1_Errors_invalid_argument">Errors::invalid_argument</a>(<a href="DiemAccount.md#0x1_DiemAccount_PROLOGUE_EBAD_CHAIN_ID">PROLOGUE_EBAD_CHAIN_ID</a>));
 
-    // [PCA2]: Verify that the transaction sender's account <b>exists</b>
-    <b>assert</b>!(<a href="DiemAccount.md#0x1_DiemAccount_exists_at">exists_at</a>(transaction_sender), <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Errors.md#0x1_Errors_invalid_argument">Errors::invalid_argument</a>(<a href="DiemAccount.md#0x1_DiemAccount_PROLOGUE_EACCOUNT_DNE">PROLOGUE_EACCOUNT_DNE</a>));
+    // // [PCA2]: Verify that the transaction sender's account <b>exists</b>
+    // <b>assert</b>!(<a href="DiemAccount.md#0x1_DiemAccount_exists_at">exists_at</a>(transaction_sender), <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Errors.md#0x1_Errors_invalid_argument">Errors::invalid_argument</a>(<a href="DiemAccount.md#0x1_DiemAccount_PROLOGUE_EACCOUNT_DNE">PROLOGUE_EACCOUNT_DNE</a>));
 
-    // [PCA3]: We check whether this account is frozen, <b>if</b> it is no transaction can be sent from it.
-    <b>assert</b>!(
-        !<a href="AccountFreezing.md#0x1_AccountFreezing_account_is_frozen">AccountFreezing::account_is_frozen</a>(transaction_sender),
-        <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Errors.md#0x1_Errors_invalid_state">Errors::invalid_state</a>(<a href="DiemAccount.md#0x1_DiemAccount_PROLOGUE_EACCOUNT_FROZEN">PROLOGUE_EACCOUNT_FROZEN</a>)
-    );
+    // // [PCA3]: We check whether this account is frozen, <b>if</b> it is no transaction can be sent from it.
+    // <b>assert</b>!(
+    //     !<a href="AccountFreezing.md#0x1_AccountFreezing_account_is_frozen">AccountFreezing::account_is_frozen</a>(transaction_sender),
+    //     <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Errors.md#0x1_Errors_invalid_state">Errors::invalid_state</a>(<a href="DiemAccount.md#0x1_DiemAccount_PROLOGUE_EACCOUNT_FROZEN">PROLOGUE_EACCOUNT_FROZEN</a>)
+    // );
 
-    // Load the transaction sender's account
-    <b>let</b> sender_account = <b>borrow_global</b>&lt;<a href="DiemAccount.md#0x1_DiemAccount">DiemAccount</a>&gt;(transaction_sender);
+    // // Load the transaction sender's account
+    // <b>let</b> sender_account = <b>borrow_global</b>&lt;<a href="DiemAccount.md#0x1_DiemAccount">DiemAccount</a>&gt;(transaction_sender);
 
-    // [PCA4]: Check that the hash of the transaction's <b>public</b> key matches the account's auth key
-    <b>assert</b>!(
-        <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Hash.md#0x1_Hash_sha3_256">Hash::sha3_256</a>(txn_public_key) == *&sender_account.authentication_key,
-        <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Errors.md#0x1_Errors_invalid_argument">Errors::invalid_argument</a>(<a href="DiemAccount.md#0x1_DiemAccount_PROLOGUE_EINVALID_ACCOUNT_AUTH_KEY">PROLOGUE_EINVALID_ACCOUNT_AUTH_KEY</a>),
-    );
+    // // [PCA4]: Check that the hash of the transaction's <b>public</b> key matches the account's auth key
+    // <b>assert</b>!(
+    //     <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Hash.md#0x1_Hash_sha3_256">Hash::sha3_256</a>(txn_public_key) == *&sender_account.authentication_key,
+    //     <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Errors.md#0x1_Errors_invalid_argument">Errors::invalid_argument</a>(<a href="DiemAccount.md#0x1_DiemAccount_PROLOGUE_EINVALID_ACCOUNT_AUTH_KEY">PROLOGUE_EINVALID_ACCOUNT_AUTH_KEY</a>),
+    // );
 
-    // [PCA5]: Check that the max transaction fee does not overflow a u64 value.
-    <b>assert</b>!(
-        (txn_gas_price <b>as</b> u128) * (txn_max_gas_units <b>as</b> u128) &lt;= <a href="DiemAccount.md#0x1_DiemAccount_MAX_U64">MAX_U64</a>,
-        <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Errors.md#0x1_Errors_invalid_argument">Errors::invalid_argument</a>(<a href="DiemAccount.md#0x1_DiemAccount_PROLOGUE_ECANT_PAY_GAS_DEPOSIT">PROLOGUE_ECANT_PAY_GAS_DEPOSIT</a>),
-    );
+    // // [PCA5]: Check that the max transaction fee does not overflow a u64 value.
+    // <b>assert</b>!(
+    //     (txn_gas_price <b>as</b> u128) * (txn_max_gas_units <b>as</b> u128) &lt;= <a href="DiemAccount.md#0x1_DiemAccount_MAX_U64">MAX_U64</a>,
+    //     <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Errors.md#0x1_Errors_invalid_argument">Errors::invalid_argument</a>(<a href="DiemAccount.md#0x1_DiemAccount_PROLOGUE_ECANT_PAY_GAS_DEPOSIT">PROLOGUE_ECANT_PAY_GAS_DEPOSIT</a>),
+    // );
 
-    <b>let</b> max_transaction_fee = txn_gas_price * txn_max_gas_units;
+    // <b>let</b> max_transaction_fee = txn_gas_price * txn_max_gas_units;
 
-    // Don't grab the balance <b>if</b> the transaction fee is zero
-    <b>if</b> (max_transaction_fee &gt; 0) {
-        // [PCA6]: Check that the gas fee can be paid in this currency
-        <b>assert</b>!(
-            <a href="TransactionFee.md#0x1_TransactionFee_is_coin_initialized">TransactionFee::is_coin_initialized</a>&lt;Token&gt;(),
-            <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Errors.md#0x1_Errors_invalid_argument">Errors::invalid_argument</a>(<a href="DiemAccount.md#0x1_DiemAccount_PROLOGUE_EBAD_TRANSACTION_FEE_CURRENCY">PROLOGUE_EBAD_TRANSACTION_FEE_CURRENCY</a>)
-        );
-        // [PCA7]: Check that the account <b>has</b> a balance in this currency
-        <b>assert</b>!(
-            <b>exists</b>&lt;<a href="DiemAccount.md#0x1_DiemAccount_Balance">Balance</a>&lt;Token&gt;&gt;(transaction_sender),
-            <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Errors.md#0x1_Errors_invalid_argument">Errors::invalid_argument</a>(<a href="DiemAccount.md#0x1_DiemAccount_PROLOGUE_ECANT_PAY_GAS_DEPOSIT">PROLOGUE_ECANT_PAY_GAS_DEPOSIT</a>)
-        );
-        <b>let</b> balance_amount = <a href="DiemAccount.md#0x1_DiemAccount_balance">balance</a>&lt;Token&gt;(transaction_sender);
-        // [PCA8]: Check that the account can cover the maximum transaction fee
-        <b>assert</b>!(
-            balance_amount &gt;= max_transaction_fee,
-            <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Errors.md#0x1_Errors_invalid_argument">Errors::invalid_argument</a>(<a href="DiemAccount.md#0x1_DiemAccount_PROLOGUE_ECANT_PAY_GAS_DEPOSIT">PROLOGUE_ECANT_PAY_GAS_DEPOSIT</a>)
-        );
-    };
+    // // Don't grab the balance <b>if</b> the transaction fee is zero
+    // <b>if</b> (max_transaction_fee &gt; 0) {
+    //     // [PCA6]: Check that the gas fee can be paid in this currency
+    //     <b>assert</b>!(
+    //         <a href="TransactionFee.md#0x1_TransactionFee_is_coin_initialized">TransactionFee::is_coin_initialized</a>&lt;Token&gt;(),
+    //         <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Errors.md#0x1_Errors_invalid_argument">Errors::invalid_argument</a>(<a href="DiemAccount.md#0x1_DiemAccount_PROLOGUE_EBAD_TRANSACTION_FEE_CURRENCY">PROLOGUE_EBAD_TRANSACTION_FEE_CURRENCY</a>)
+    //     );
+    //     // [PCA7]: Check that the account <b>has</b> a balance in this currency
+    //     <b>assert</b>!(
+    //         <b>exists</b>&lt;<a href="DiemAccount.md#0x1_DiemAccount_Balance">Balance</a>&lt;Token&gt;&gt;(transaction_sender),
+    //         <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Errors.md#0x1_Errors_invalid_argument">Errors::invalid_argument</a>(<a href="DiemAccount.md#0x1_DiemAccount_PROLOGUE_ECANT_PAY_GAS_DEPOSIT">PROLOGUE_ECANT_PAY_GAS_DEPOSIT</a>)
+    //     );
+    //     <b>let</b> balance_amount = <a href="DiemAccount.md#0x1_DiemAccount_balance">balance</a>&lt;Token&gt;(transaction_sender);
+    //     // [PCA8]: Check that the account can cover the maximum transaction fee
+    //     <b>assert</b>!(
+    //         balance_amount &gt;= max_transaction_fee,
+    //         <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Errors.md#0x1_Errors_invalid_argument">Errors::invalid_argument</a>(<a href="DiemAccount.md#0x1_DiemAccount_PROLOGUE_ECANT_PAY_GAS_DEPOSIT">PROLOGUE_ECANT_PAY_GAS_DEPOSIT</a>)
+    //     );
+    // };
 
-    // [PCA9]: Check that the transaction hasn't expired
-    <b>assert</b>!(
-        <a href="DiemTimestamp.md#0x1_DiemTimestamp_now_seconds">DiemTimestamp::now_seconds</a>() &lt; txn_expiration_time_seconds,
-        <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Errors.md#0x1_Errors_invalid_argument">Errors::invalid_argument</a>(<a href="DiemAccount.md#0x1_DiemAccount_PROLOGUE_ETRANSACTION_EXPIRED">PROLOGUE_ETRANSACTION_EXPIRED</a>)
-    );
+    // // [PCA9]: Check that the transaction hasn't expired
+    // <b>assert</b>!(
+    //     <a href="DiemTimestamp.md#0x1_DiemTimestamp_now_seconds">DiemTimestamp::now_seconds</a>() &lt; txn_expiration_time_seconds,
+    //     <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Errors.md#0x1_Errors_invalid_argument">Errors::invalid_argument</a>(<a href="DiemAccount.md#0x1_DiemAccount_PROLOGUE_ETRANSACTION_EXPIRED">PROLOGUE_ETRANSACTION_EXPIRED</a>)
+    // );
 
-    // [PCA10]: Check that the transaction's sequence number will not overflow.
-    <b>assert</b>!(
-        (txn_sequence_number <b>as</b> u128) &lt; <a href="DiemAccount.md#0x1_DiemAccount_MAX_U64">MAX_U64</a>,
-        <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Errors.md#0x1_Errors_limit_exceeded">Errors::limit_exceeded</a>(<a href="DiemAccount.md#0x1_DiemAccount_PROLOGUE_ESEQUENCE_NUMBER_TOO_BIG">PROLOGUE_ESEQUENCE_NUMBER_TOO_BIG</a>)
-    );
+    // // [PCA10]: Check that the transaction's sequence number will not overflow.
+    // <b>assert</b>!(
+    //     (txn_sequence_number <b>as</b> u128) &lt; <a href="DiemAccount.md#0x1_DiemAccount_MAX_U64">MAX_U64</a>,
+    //     <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Errors.md#0x1_Errors_limit_exceeded">Errors::limit_exceeded</a>(<a href="DiemAccount.md#0x1_DiemAccount_PROLOGUE_ESEQUENCE_NUMBER_TOO_BIG">PROLOGUE_ESEQUENCE_NUMBER_TOO_BIG</a>)
+    // );
 
-    <b>if</b> (<a href="CRSN.md#0x1_CRSN_has_crsn">CRSN::has_crsn</a>(transaction_sender)) {
-        // [PCA13]: If using a sequence nonce check that it's accepted
-        <b>assert</b>!(
-            <a href="CRSN.md#0x1_CRSN_check">CRSN::check</a>(sender, txn_sequence_number),
-            <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Errors.md#0x1_Errors_invalid_argument">Errors::invalid_argument</a>(<a href="DiemAccount.md#0x1_DiemAccount_PROLOGUE_ESEQ_NONCE_INVALID">PROLOGUE_ESEQ_NONCE_INVALID</a>)
-        );
-    } <b>else</b> {
-        // [PCA11]: Check that the transaction sequence number is not too <b>old</b> (in the past)
-        <b>assert</b>!(
-            txn_sequence_number &gt;= sender_account.sequence_number,
-            <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Errors.md#0x1_Errors_invalid_argument">Errors::invalid_argument</a>(<a href="DiemAccount.md#0x1_DiemAccount_PROLOGUE_ESEQUENCE_NUMBER_TOO_OLD">PROLOGUE_ESEQUENCE_NUMBER_TOO_OLD</a>)
-        );
+    // <b>if</b> (<a href="CRSN.md#0x1_CRSN_has_crsn">CRSN::has_crsn</a>(transaction_sender)) {
+    //     // [PCA13]: If using a sequence nonce check that it's accepted
+    //     <b>assert</b>!(
+    //         <a href="CRSN.md#0x1_CRSN_check">CRSN::check</a>(sender, txn_sequence_number),
+    //         <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Errors.md#0x1_Errors_invalid_argument">Errors::invalid_argument</a>(<a href="DiemAccount.md#0x1_DiemAccount_PROLOGUE_ESEQ_NONCE_INVALID">PROLOGUE_ESEQ_NONCE_INVALID</a>)
+    //     );
+    // } <b>else</b> {
+    //     // [PCA11]: Check that the transaction sequence number is not too <b>old</b> (in the past)
+    //     <b>assert</b>!(
+    //         txn_sequence_number &gt;= sender_account.sequence_number,
+    //         <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Errors.md#0x1_Errors_invalid_argument">Errors::invalid_argument</a>(<a href="DiemAccount.md#0x1_DiemAccount_PROLOGUE_ESEQUENCE_NUMBER_TOO_OLD">PROLOGUE_ESEQUENCE_NUMBER_TOO_OLD</a>)
+    //     );
 
-        // [PCA12]: Check that the transaction's sequence number matches the
-        // current sequence number. Otherwise sequence number is too new by [PCA11].
-        <b>assert</b>!(
-            txn_sequence_number == sender_account.sequence_number,
-            <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Errors.md#0x1_Errors_invalid_argument">Errors::invalid_argument</a>(<a href="DiemAccount.md#0x1_DiemAccount_PROLOGUE_ESEQUENCE_NUMBER_TOO_NEW">PROLOGUE_ESEQUENCE_NUMBER_TOO_NEW</a>)
-        );
+    //     // [PCA12]: Check that the transaction's sequence number matches the
+    //     // current sequence number. Otherwise sequence number is too new by [PCA11].
+    //     <b>assert</b>!(
+    //         txn_sequence_number == sender_account.sequence_number,
+    //         <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Errors.md#0x1_Errors_invalid_argument">Errors::invalid_argument</a>(<a href="DiemAccount.md#0x1_DiemAccount_PROLOGUE_ESEQUENCE_NUMBER_TOO_NEW">PROLOGUE_ESEQUENCE_NUMBER_TOO_NEW</a>)
+    //     );
 
-        // WARNING: No checks should be added here <b>as</b> the sequence number too new check should be the last check run
-        // by the prologue.
-    }
+    //     // WARNING: No checks should be added here <b>as</b> the sequence number too new check should be the last check run
+    //     // by the prologue.
+    // }
 }
 </code></pre>
 
@@ -4381,16 +4370,6 @@ The main properties that it verifies:
 
 <details>
 <summary>Specification</summary>
-
-
-
-<pre><code><b>let</b> transaction_sender = <a href="../../../../../../../DPN/releases/artifacts/current/build/MoveStdlib/docs/Signer.md#0x1_Signer_address_of">Signer::address_of</a>(sender);
-<b>let</b> max_transaction_fee = txn_gas_price * txn_max_gas_units;
-<b>include</b> <a href="DiemAccount.md#0x1_DiemAccount_PrologueCommonAbortsIf">PrologueCommonAbortsIf</a>&lt;Token&gt; {
-    transaction_sender,
-    max_transaction_fee,
-};
-</code></pre>
 
 
 
