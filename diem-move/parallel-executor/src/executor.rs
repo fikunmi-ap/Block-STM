@@ -254,11 +254,11 @@ where
         let scheduler = Scheduler::new(num_txns);
 
         scope(|s| {
-            println!(
-                "Launching {} threads to execute... total txns: {:?}",
-                compute_cpus,
-                scheduler.num_txn_to_execute(),
-            );
+            // println!(
+            //     "Launching {} threads to execute... total txns: {:?}",
+            //     compute_cpus,
+            //     scheduler.num_txn_to_execute(),
+            // );
 
             for _ in 0..(compute_cpus) {
                 s.spawn(|_| {
