@@ -56,6 +56,7 @@ use std::{
     collections::HashSet,
     convert::{AsMut, AsRef},
 };
+use std::time::Instant;
 
 #[derive(Clone)]
 pub struct DiemVM(pub(crate) DiemVMImpl);
@@ -708,7 +709,10 @@ impl DiemVM {
         let mut state_view_cache = StateViewCache::new(state_view);
         let count = transactions.len();
         let vm = DiemVM::new(&state_view_cache);
+        let timer = Instant::now();
         let res = adapter_common::execute_block_impl(&vm, transactions, &mut state_view_cache)?;
+        let exec_t = timer.elapsed();
+        println!("Sequential TPS: {}, block_size: {}", (count * 1000 / exec_t.as_millis() as usize) as usize, count);
         // Record the histogram count for transactions per block.
         BLOCK_TRANSACTION_COUNT.observe(count as f64);
         Ok(res)
