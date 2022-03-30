@@ -1,4 +1,4 @@
-Run Bohm:
+## Run Bohm:
 1. `./scripts/dev_setup.sh`
 2. `cd diem-move/diem-framework`
 3. `cargo run`
