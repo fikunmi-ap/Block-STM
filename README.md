@@ -1,3 +1,31 @@
+# Block-STM
+
+This repository implements and benchmarks **Block-STM** and other baselines for the paper [Block-STM: Scaling Blockchain Execution by Turning Ordering Curse to a Performance Blessing](https://arxiv.org/abs/2203.06871).
+The implementation of Block-STM has been merged on the main branch of the Diem blockchain open source code-base, see [PR](https://github.com/diem/diem/pull/10173).
+
+Branch `block_stm` and `block_stm_simple_p2p` implements and benchmarks Block-STM with standard and simplified Diem peer-to-peer transactions, repectively.
+Similarly, branches `bohm` and `bohm_simple_p2p`, `litm` and `litm_simple_p2p` implement and benchmark Bohm and LiTM with standard and simplified Diem peer-to-peer transactions, repectively.
+
+## Run Block-STM:
+1. `./scripts/dev_setup.sh`
+2. `cd diem-move/diem-framework`
+3. `cargo run`
+5. `cd ../diem-transaction-benchmarks/src`
+6. `cargo run --release main`
+
+Use `taskset` commands to run experiments with different threads number. Set parameters in `diem-move/diem-transaction-benchmarks/src/main.rs`.
+
+## Run sequential baseline:
+1. `./scripts/dev_setup.sh`
+2. `cd diem-move/diem-framework`
+3. `cargo run`
+5. `cd ../diem-transaction-benchmarks/benches`
+6. `cargo bench peer_to_peer`
+
+Set parameters in `diem-move/diem-transaction-benchmarks/src/transactions.rs`.
+
+---
+
 > **Note to readers:** On December 1, 2020, the Libra Association was renamed to Diem Association. The project repos are in the process of being migrated. All projects will remain available for use here until the migration to a new GitHub Organization is complete.
 
 <a href="https://developers.diem.com">
