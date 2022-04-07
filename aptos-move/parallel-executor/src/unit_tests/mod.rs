@@ -140,7 +140,7 @@ fn scheduler_tasks() {
         // not calling finish execution, so validation tasks not dispatched.
         assert!(matches!(
             s.next_task(),
-            SchedulerTask::ExecutionTask((j, 0), _) if i == j
+            SchedulerTask::ExecutionTask((j, 0), None, _) if i == j
         ));
     }
 
@@ -201,20 +201,20 @@ fn scheduler_tasks() {
     assert!(!s.try_abort(3, 0));
     assert!(matches!(
         s.finish_abort(3, 0, TaskGuard::new(&fake_counter)),
-        SchedulerTask::ExecutionTask((3, 1), _)
+        SchedulerTask::ExecutionTask((3, 1), None, _)
     ));
 
     // can abort even after succesful validation
     assert!(s.try_abort(4, 0));
     assert!(matches!(
         s.finish_abort(4, 0, TaskGuard::new(&fake_counter)),
-        SchedulerTask::ExecutionTask((4, 1), _)
+        SchedulerTask::ExecutionTask((4, 1), None, _)
     ));
 
     // txn 4 is aborted, so there won't be a validation task.
     assert!(matches!(
         s.next_task(),
-        SchedulerTask::ExecutionTask((5, 0), _)
+        SchedulerTask::ExecutionTask((5, 0), None, _)
     ));
     // Wrap up all outstanding tasks.
     assert!(matches!(
@@ -248,7 +248,7 @@ fn scheduler_dependency() {
         // not calling finish execution, so validation tasks not dispatched.
         assert!(matches!(
             s.next_task(),
-            SchedulerTask::ExecutionTask((j, 0), _) if j == i
+            SchedulerTask::ExecutionTask((j, 0), None, _) if j == i
         ));
     }
 
@@ -258,11 +258,11 @@ fn scheduler_dependency() {
     ));
     assert!(matches!(
         s.next_task(),
-        SchedulerTask::ExecutionTask((5, 0), _)
+        SchedulerTask::ExecutionTask((5, 0), None, _)
     ));
 
-    assert!(!s.try_add_dependency(3, 0));
-    assert!(s.try_add_dependency(4, 2));
+    assert!(s.wait_for_dependency(3, 0).is_none());
+    assert!(s.wait_for_dependency(4, 2).is_some());
 
     assert!(matches!(
         s.finish_execution(2, 0, false, TaskGuard::new(&fake_counter)),
@@ -270,7 +270,7 @@ fn scheduler_dependency() {
     ));
     assert!(matches!(
         s.next_task(),
-        SchedulerTask::ExecutionTask((4, 1), _)
+        SchedulerTask::ExecutionTask((4, 1), Some(_), _)
     ));
 }
 
@@ -283,12 +283,12 @@ fn scheduler_incarnation() {
         // not calling finish execution, so validation tasks not dispatched.
         assert!(matches!(
             s.next_task(),
-            SchedulerTask::ExecutionTask((j, 0), _) if j == i
+            SchedulerTask::ExecutionTask((j, 0), None, _) if j == i
         ));
     }
     // execution index = 5
-    assert!(s.try_add_dependency(1, 0));
-    assert!(s.try_add_dependency(3, 0));
+    assert!(s.wait_for_dependency(1, 0).is_some());
+    assert!(s.wait_for_dependency(3, 0).is_some());
 
     assert!(matches!(
         s.finish_execution(2, 0, true, TaskGuard::new(&fake_counter)),
@@ -314,7 +314,7 @@ fn scheduler_incarnation() {
 
     assert!(matches!(
         s.finish_abort(2, 0, TaskGuard::new(&fake_counter)),
-        SchedulerTask::ExecutionTask((2, 1), _)
+        SchedulerTask::ExecutionTask((2, 1), None, _)
     ));
 
     assert!(matches!(
@@ -330,15 +330,15 @@ fn scheduler_incarnation() {
 
     assert!(matches!(
         s.next_task(),
-        SchedulerTask::ExecutionTask((1, 1), _)
+        SchedulerTask::ExecutionTask((1, 1), Some(_), _)
     ));
     assert!(matches!(
         s.next_task(),
-        SchedulerTask::ExecutionTask((3, 1), _)
+        SchedulerTask::ExecutionTask((3, 1), Some(_), _)
     ));
     assert!(matches!(
         s.next_task(),
-        SchedulerTask::ExecutionTask((4, 1), _)
+        SchedulerTask::ExecutionTask((4, 1), None, _)
     ));
     // execution index = 5
 

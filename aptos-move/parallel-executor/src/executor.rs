@@ -8,21 +8,11 @@ use crate::{
     task::{ExecutionStatus, ExecutorTask, Transaction, TransactionOutput},
     txn_last_input_output::{ReadDescriptor, TxnLastInputOutput},
 };
-use anyhow::{bail, Result as AResult};
 use aptos_infallible::Mutex;
 use mvhashmap::MVHashMap;
 use num_cpus;
-use rayon::{prelude::*, scope};
-use std::{
-    collections::HashSet,
-    hash::Hash,
-    marker::PhantomData,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
-    thread::spawn,
-};
+use rayon::prelude::*;
+use std::{collections::HashSet, hash::Hash, marker::PhantomData, sync::Arc, thread::spawn};
 
 /// A struct that is always used by a single thread performing an execution task. The struct is
 /// passed to the VM and acts as a proxy to resolve reads first in the shared multi-version
@@ -35,7 +25,6 @@ pub struct MVHashMapView<'a, K, V> {
     versioned_map: &'a MVHashMap<K, V>,
     txn_idx: TxnIndex,
     scheduler: &'a Scheduler,
-    read_dependency: AtomicBool,
     captured_reads: Mutex<Vec<ReadDescriptor<K>>>,
 }
 
@@ -47,7 +36,7 @@ impl<'a, K: PartialOrd + Send + Clone + Hash + Eq, V: Send + Sync> MVHashMapView
     }
 
     /// Captures a read from the VM execution.
-    pub fn read(&self, key: &K) -> AResult<Option<Arc<V>>> {
+    pub fn read(&self, key: &K) -> Option<Arc<V>> {
         loop {
             match self.versioned_map.read(key, self.txn_idx) {
                 Ok((version, v)) => {
@@ -57,23 +46,39 @@ impl<'a, K: PartialOrd + Send + Clone + Hash + Eq, V: Send + Sync> MVHashMapView
                         txn_idx,
                         incarnation,
                     ));
-                    return Ok(Some(v));
+                    return Some(v);
                 }
                 Err(None) => {
                     self.captured_reads
                         .lock()
                         .push(ReadDescriptor::from_storage(key.clone()));
-                    return Ok(None);
+                    return None;
                 }
                 Err(Some(dep_idx)) => {
-                    // Don't start execution transaction `self.txn_idx` until `dep_idx` is computed.
-                    if self.scheduler.try_add_dependency(self.txn_idx, dep_idx) {
-                        // dep_idx is already executed, push `self.txn_idx` to ready queue.
-                        self.read_dependency.store(true, Ordering::Relaxed);
-                        bail!("Read dependency is not computed, retry later")
-                    } else {
-                        // Re-read, as the dependency got resolved.
-                        continue;
+                    // `self.txn_idx` estimated to depend on a write from `dep_idx`.
+                    match self.scheduler.wait_for_dependency(self.txn_idx, dep_idx) {
+                        Some(dep_condition) => {
+                            // Wait on a condition variable correpsonding to the encountered
+                            // read dependency. Once the dep_idx finishes re-execution, scheduler
+                            // will mark the dependency as resolved, and then the txn_idx will be
+                            // scheduled for re-execution, which will re-awaken cvar here.
+                            // A deadlock is not possible due to these condition variables:
+                            // suppose all threads are waiting on read dependency, and consider
+                            // one with lowest txn_idx. It observed a dependency, so some thread
+                            // aborted dep_idx. If that abort returned execution task, by
+                            // minimality (lower transactions aren't waiting), that thread would
+                            // finish execution unblock txn_idx, contradiction. Otherwise,
+                            // execution_idx in scheduler was lower at a time when at least the
+                            // thread that aborted dep_idx was alive, and again, since lower txns
+                            // than txn_idx are not blocked, so the execution of dep_idx will
+                            // eventually finish and lead to unblocking txn_idx, contradiction.
+                            let (lock, cvar) = &*dep_condition;
+                            let mut dep_resolved = lock.lock();
+                            while !*dep_resolved {
+                                dep_resolved = cvar.wait(dep_resolved).unwrap();
+                            }
+                        }
+                        None => continue,
                     }
                 }
             };
@@ -84,15 +89,12 @@ impl<'a, K: PartialOrd + Send + Clone + Hash + Eq, V: Send + Sync> MVHashMapView
     pub fn txn_idx(&self) -> TxnIndex {
         self.txn_idx
     }
-
-    /// Return whether a read dependency was encountered during VM execution.
-    pub fn read_dependency(&self) -> bool {
-        self.read_dependency.load(Ordering::Relaxed)
-    }
 }
 
 pub struct ParallelTransactionExecutor<T: Transaction, E: ExecutorTask> {
-    num_cpus: usize,
+    // number of active concurrent tasks, corresponding to the maximum number of rayon
+    // threads that may be concurrently participating in parallel execution.
+    concurrency_level: usize,
     phantom: PhantomData<(T, E)>,
 }
 
@@ -103,12 +105,13 @@ where
 {
     pub fn new() -> Self {
         Self {
-            num_cpus: num_cpus::get(),
+            // TODO: must be a configurable parameter.
+            concurrency_level: num_cpus::get(),
             phantom: PhantomData,
         }
     }
 
-    pub fn execute<'a>(
+    fn execute<'a>(
         &self,
         version_to_execute: Version,
         guard: TaskGuard<'a>,
@@ -125,37 +128,15 @@ where
         let (idx_to_execute, incarnation) = version_to_execute;
         let txn = &signature_verified_block[idx_to_execute];
 
-        // An optimization to pre-check that there are no read dependencies once prior read-set
-        // is available, to avoid an execution that will likely be discarded due to the dependency.
-        // TODO (issue 10180): remove once we have a way to suspend VM execution (so partial
-        // execution would not be discarded).
-        if let Some(read_set) = last_input_output.read_set(idx_to_execute) {
-            if read_set.iter().any(
-                |r| match versioned_data_cache.read(r.path(), idx_to_execute) {
-                    Err(Some(dep_idx)) => scheduler.try_add_dependency(idx_to_execute, dep_idx),
-                    Ok(_) | Err(None) => false,
-                },
-            ) {
-                // Transaction has a read dependency. Was not executed and thus nothing to validate.
-                return SchedulerTask::NoTask;
-            }
-        }
-
         let state_view = MVHashMapView {
             versioned_map: versioned_data_cache,
             txn_idx: idx_to_execute,
             scheduler,
-            read_dependency: AtomicBool::new(false),
             captured_reads: Mutex::new(Vec::new()),
         };
 
         // VM execution.
         let execute_result = executor.execute_transaction(&state_view, txn);
-
-        if state_view.read_dependency() {
-            // Encountered and already handled (added to Scheduler) a read dependency.
-            return SchedulerTask::NoTask;
-        }
 
         let mut prev_write_set: HashSet<T::Key> = last_input_output.write_set(idx_to_execute);
 
@@ -199,7 +180,7 @@ where
         scheduler.finish_execution(idx_to_execute, incarnation, writes_outside, guard)
     }
 
-    pub fn validate<'a>(
+    fn validate<'a>(
         &self,
         version_to_validate: Version,
         guard: TaskGuard<'a>,
@@ -238,6 +219,64 @@ where
         }
     }
 
+    fn work_task_with_scope<'a>(
+        &'a self,
+        executor_arguments: &'a E::Argument,
+        block: &'a [T],
+        last_input_output: &'a TxnLastInputOutput<
+            <T as Transaction>::Key,
+            <E as ExecutorTask>::Output,
+            <E as ExecutorTask>::Error,
+        >,
+        versioned_data_cache: &'a MVHashMap<<T as Transaction>::Key, <T as Transaction>::Value>,
+        scheduler: &'a Scheduler,
+    ) {
+        // Make executor for each task. TODO: fast concurrent executor.
+        let executor = E::init(*executor_arguments);
+
+        let mut scheduler_task = SchedulerTask::NoTask;
+        loop {
+            scheduler_task = match scheduler_task {
+                SchedulerTask::ValidationTask(version_to_validate, guard) => self.validate(
+                    version_to_validate,
+                    guard,
+                    &last_input_output,
+                    &versioned_data_cache,
+                    &scheduler,
+                ),
+                SchedulerTask::ExecutionTask(version_to_execute, maybe_condvar, guard) => {
+                    match maybe_condvar {
+                        Some(dep_condvar) => {
+                            // resumption task.
+
+                            let (lock, cvar) = &*dep_condvar;
+                            // Mark dependency resolved.
+                            *lock.lock() = true;
+                            // Wake up the process waiting for dependency.
+                            cvar.notify_one();
+
+                            drop(guard);
+                            SchedulerTask::NoTask
+                        }
+                        None => self.execute(
+                            version_to_execute,
+                            guard,
+                            &block,
+                            &last_input_output,
+                            &versioned_data_cache,
+                            &scheduler,
+                            &executor,
+                        ),
+                    }
+                }
+                SchedulerTask::NoTask => scheduler.next_task(),
+                SchedulerTask::Done => {
+                    break;
+                }
+            }
+        }
+    }
+
     pub fn execute_transactions_parallel(
         &self,
         executor_initial_arguments: E::Argument,
@@ -250,54 +289,27 @@ where
         let num_txns = signature_verified_block.len();
         let versioned_data_cache = MVHashMap::new();
         let outcomes = OutcomeArray::new(num_txns);
-        let compute_cpus = self.num_cpus;
         let last_input_output = TxnLastInputOutput::new(num_txns);
         let scheduler = Scheduler::new(num_txns);
 
-        scope(|s| {
-            println!(
-                "Launching {} threads to execute... total txns: {:?}",
-                compute_cpus,
-                scheduler.num_txn_to_execute(),
-            );
-
-            for _ in 0..(compute_cpus) {
+        rayon::scope(|s| {
+            for _ in 0..self.concurrency_level {
                 s.spawn(|_| {
-                    // Make executor for each thread.
-                    let executor = E::init(executor_initial_arguments);
-
-                    let mut scheduler_task = SchedulerTask::NoTask;
-                    loop {
-                        scheduler_task = match scheduler_task {
-                            SchedulerTask::ValidationTask(version_to_validate, guard) => self
-                                .validate(
-                                    version_to_validate,
-                                    guard,
-                                    &last_input_output,
-                                    &versioned_data_cache,
-                                    &scheduler,
-                                ),
-                            SchedulerTask::ExecutionTask(version_to_execute, guard) => self
-                                .execute(
-                                    version_to_execute,
-                                    guard,
-                                    &signature_verified_block,
-                                    &last_input_output,
-                                    &versioned_data_cache,
-                                    &scheduler,
-                                    &executor,
-                                ),
-                            SchedulerTask::NoTask => scheduler.next_task(),
-                            SchedulerTask::Done => break,
-                        }
-                    }
+                    self.work_task_with_scope(
+                        &executor_initial_arguments,
+                        &signature_verified_block,
+                        &last_input_output,
+                        &versioned_data_cache,
+                        &scheduler,
+                    );
                 });
             }
         });
 
         // Extract outputs in parallel
         let valid_results_size = scheduler.num_txn_to_execute();
-        let chunk_size = (valid_results_size + 4 * compute_cpus - 1) / (4 * compute_cpus);
+        let chunk_size =
+            (valid_results_size + 4 * self.concurrency_level - 1) / (4 * self.concurrency_level);
         (0..valid_results_size)
             .collect::<Vec<TxnIndex>>()
             .par_chunks(chunk_size)
