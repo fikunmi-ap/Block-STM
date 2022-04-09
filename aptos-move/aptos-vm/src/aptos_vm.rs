@@ -55,6 +55,7 @@ use move_vm_types::gas_schedule::GasStatus;
 use std::{
     collections::HashSet,
     convert::{AsMut, AsRef},
+    time::Instant,
 };
 
 #[derive(Clone)]
@@ -714,7 +715,10 @@ impl AptosVM {
         let mut state_view_cache = StateViewCache::new(state_view);
         let count = transactions.len();
         let vm = AptosVM::new(&state_view_cache);
+        let timer = Instant::now();
         let res = adapter_common::execute_block_impl(&vm, transactions, &mut state_view_cache)?;
+        let exec_t = timer.elapsed();
+        println!("Sequential TPS: {}, block_size: {}", (count * 1000 / exec_t.as_millis() as usize) as usize, count);
         // Record the histogram count for transactions per block.
         BLOCK_TRANSACTION_COUNT.observe(count as f64);
         Ok(res)
@@ -739,10 +743,11 @@ impl VMExecutor for AptosVM {
         });
 
         // Execute transactions in parallel if on chain config is set and loaded.
-        if let Some(_read_write_set_analysis) =
-            ParallelExecutionConfig::fetch_config(&RemoteStorage::new(state_view))
-                .and_then(|config| config.read_write_analysis_result)
-                .map(|config| config.into_inner())
+        // if let Some(_read_write_set_analysis) =
+        //     ParallelExecutionConfig::fetch_config(&RemoteStorage::new(state_view))
+        //         .and_then(|config| config.read_write_analysis_result)
+        //         .map(|config| config.into_inner())
+        if true
         {
             // Note that writeset transactions will be executed sequentially as it won't be inferred
             // by the read write set analysis and thus fall into the sequential path.

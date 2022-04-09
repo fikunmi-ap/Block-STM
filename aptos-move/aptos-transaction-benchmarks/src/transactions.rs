@@ -5,9 +5,9 @@ use aptos_crypto::HashValue;
 use aptos_types::{
     block_metadata::BlockMetadata,
     on_chain_config::{OnChainConfig, ValidatorSet},
-    transaction::Transaction,
+    transaction::{SignedTransaction, Transaction},
 };
-use aptos_vm::{data_cache::AsMoveResolver, AptosVM, VMExecutor};
+use aptos_vm::{data_cache::AsMoveResolver, AptosVM, VMExecutor, parallel_executor::ParallelAptosVM};
 use criterion::{measurement::Measurement, BatchSize, Bencher};
 use language_e2e_tests::{
     account_universe::{log_balance_strategy, AUTransactionGen, AccountUniverseGen},
@@ -80,7 +80,7 @@ where
     pub fn bench_parallel<M: Measurement>(&self, b: &mut Bencher<M>) {
         b.iter_batched(
             || {
-                TransactionBenchState::with_size_parallel(
+                ParallelBenchState::with_size(
                     &self.strategy,
                     self.num_accounts,
                     self.num_transactions,
@@ -90,6 +90,43 @@ where
             // The input here is the entire list of signed transactions, so it's pretty large.
             BatchSize::LargeInput,
         )
+    }
+
+    /// Runs the bencher.
+    pub fn manual_parallel(
+        &self,
+        num_accounts: usize,
+        num_txn: usize,
+        num_warmups: usize,
+        num_runs: usize,
+    ) -> Vec<usize> {
+        let mut ret = Vec::new();
+
+        let total_runs = num_warmups + num_runs;
+        for i in 0..total_runs {
+            let state = ParallelBenchState::with_size(
+                &self.strategy,
+                num_accounts,
+                num_txn,
+            );
+
+            if i < num_warmups {
+                println!("WARMUP - ignore results");
+                state.execute();
+            } else {
+                println!(
+                    "RUN bencher for: num_threads = {}, \
+                          block_size = {}, \
+                          num_account = {}",
+                    num_cpus::get(),
+                    num_txn,
+                    num_accounts,
+                );
+                ret.push(state.execute());
+            }
+        }
+
+        ret
     }
 }
 
@@ -105,7 +142,7 @@ struct TransactionBenchState {
     // 6. Add an enum to TransactionBencher that lets callers choose between the fake and real
     //    executors.
     executor: FakeExecutor,
-    transactions: Vec<Transaction>,
+    transactions: Vec<SignedTransaction>,
 }
 
 impl TransactionBenchState {
@@ -151,7 +188,7 @@ impl TransactionBenchState {
             .current();
         let transactions = transaction_gens
             .into_iter()
-            .map(|txn_gen| Transaction::UserTransaction(txn_gen.apply(&mut universe).0))
+            .map(|txn_gen| txn_gen.apply(&mut universe).0)
             .collect();
 
         Self {
@@ -164,40 +201,8 @@ impl TransactionBenchState {
     fn execute(self) {
         // The output is ignored here since we're just testing transaction performance, not trying
         // to assert correctness.
-        AptosVM::execute_block(self.transactions, self.executor.get_state_view())
+        self.executor.execute_block(self.transactions)
             .expect("VM should not fail to start");
-    }
-
-    fn with_size_parallel<S>(strategy: S, num_accounts: usize, num_transactions: usize) -> Self
-    where
-        S: Strategy,
-        S::Value: AUTransactionGen,
-    {
-        let mut state = Self::with_universe(
-            strategy,
-            universe_strategy(num_accounts, num_transactions),
-            num_transactions,
-        );
-        state.executor.enable_parallel_execution();
-
-        // Insert a blockmetadata transaction at the beginning to better simulate the real life traffic.
-        let validator_set =
-            ValidatorSet::fetch_config(&state.executor.get_state_view().as_move_resolver())
-                .expect("Unable to retrieve the validator set from storage");
-
-        let new_block = BlockMetadata::new(
-            HashValue::zero(),
-            0,
-            1,
-            vec![],
-            *validator_set.payload()[0].account_address(),
-        );
-
-        state
-            .transactions
-            .insert(0, Transaction::BlockMetadata(new_block));
-
-        state
     }
 }
 
@@ -210,4 +215,45 @@ fn universe_strategy(
     let max_balance = TXN_RESERVED * num_transactions as u64 * 5;
     let balance_strategy = log_balance_strategy(max_balance);
     AccountUniverseGen::strategy(num_accounts, balance_strategy)
+}
+
+struct ParallelBenchState {
+    bench_state: TransactionBenchState,
+}
+
+impl ParallelBenchState {
+    /// Creates a new benchmark state with the given number of accounts and transactions.
+    fn with_size<S>(
+        strategy: S,
+        num_accounts: usize,
+        num_transactions: usize,
+    ) -> Self
+    where
+        S: Strategy,
+        S::Value: AUTransactionGen,
+    {
+        Self {
+            bench_state: TransactionBenchState::with_universe(
+                strategy,
+                universe_strategy(num_accounts, num_transactions),
+                num_transactions,
+            ),
+        }
+    }
+
+    fn execute(self) -> usize {
+        let txns = self
+            .bench_state
+            .transactions
+            .into_iter()
+            .map(Transaction::UserTransaction)
+            .collect();
+        let state_view = self.bench_state.executor.get_state_view();
+        // measured - microseconds.
+
+        ParallelAptosVM::execute_block_tps(
+            txns,
+            state_view,
+        )
+    }
 }
