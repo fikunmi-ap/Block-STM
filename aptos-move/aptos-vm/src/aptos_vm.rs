@@ -743,11 +743,11 @@ impl VMExecutor for AptosVM {
         });
 
         // Execute transactions in parallel if on chain config is set and loaded.
-        // if let Some(_read_write_set_analysis) =
-        //     ParallelExecutionConfig::fetch_config(&RemoteStorage::new(state_view))
-        //         .and_then(|config| config.read_write_analysis_result)
-        //         .map(|config| config.into_inner())
-        if true
+        if let Some(_read_write_set_analysis) =
+            ParallelExecutionConfig::fetch_config(&RemoteStorage::new(state_view))
+                .and_then(|config| config.read_write_analysis_result)
+                .map(|config| config.into_inner())
+        // if true
         {
             // Note that writeset transactions will be executed sequentially as it won't be inferred
             // by the read write set analysis and thus fall into the sequential path.
