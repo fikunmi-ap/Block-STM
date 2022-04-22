@@ -1,3 +1,24 @@
+# Block-STM
+
+This repository implements and benchmarks **Block-STM** and other baselines for the paper [Block-STM: Scaling Blockchain Execution by Turning Ordering Curse to a Performance Blessing](https://arxiv.org/abs/2203.06871).
+The implementation of Block-STM has been merged on the main branch of the Diem blockchain open source code-base, see [PR](https://github.com/diem/diem/pull/10173).
+
+## Run Block-STM with Aptos peer-to-peer transactions:
+1. `./scripts/dev_setup.sh`
+2. `cd aptos-move/aptos-transaction-benchmarks/src`
+3. `cargo run --release main`
+
+Use `taskset` commands to run experiments with different threads number. Set parameters in `aptos-move/aptos-transaction-benchmarks/src/main.rs`.
+
+## Run sequential baseline with Aptos peer-to-peer transactions:
+1. `./scripts/dev_setup.sh`
+2. `cd aptos-move/aptos-transaction-benchmarks/benches`
+3. `cargo bench peer_to_peer`
+
+Set parameters in `aptos-move/aptos-transaction-benchmarks/src/transactions.rs`.
+
+---
+
 <a href="https://aptos.dev">
 	<img width="100%" src="./.assets/aptos_banner.png" alt="Aptos Banner" />
 </a>
