@@ -3,8 +3,8 @@
 This repository implements and benchmarks **Block-STM** and other baselines for the paper [Block-STM: Scaling Blockchain Execution by Turning Ordering Curse to a Performance Blessing](https://arxiv.org/abs/2203.06871).
 The implementation of Block-STM has been merged on the main branch of the Diem blockchain open source code-base, see [PR](https://github.com/diem/diem/pull/10173).
 
-Branch `block_stm` and `block_stm_simple_p2p` implements and benchmarks Block-STM with standard and simplified Diem peer-to-peer transactions, repectively.
-Similarly, branches `bohm` and `bohm_simple_p2p`, `litm` and `litm_simple_p2p` implement and benchmark Bohm and LiTM with standard and simplified Diem peer-to-peer transactions, repectively.
+Branches `block_stm` and `aptos` implement and benchmark Block-STM with Diem peer-to-peer transactions and Aptos peer-to-peer transactions, repectively.
+Similarly, branches `bohm` and `litm` implement and benchmark Bohm and LiTM with Diem peer-to-peer transactions, repectively.
 
 ## Run Block-STM:
 1. `./scripts/dev_setup.sh`
@@ -13,7 +13,14 @@ Similarly, branches `bohm` and `bohm_simple_p2p`, `litm` and `litm_simple_p2p` i
 5. `cd ../diem-transaction-benchmarks/src`
 6. `cargo run --release main`
 
-Use `taskset` commands to run experiments with different threads number. Set parameters in `diem-move/diem-transaction-benchmarks/src/main.rs`.
+Use `taskset` commands to run experiments with different threads number. 
+
+Set parameters (number of accounts/transactions/warmup-runs/runs) in `diem-move/diem-transaction-benchmarks/src/main.rs`.
+
+    let acts = [2, 10, 100, 1000, 10000];
+    let txns = [1000, 10000];
+    let num_warmups = 2;
+    let num_runs = 10;
 
 ## Run sequential baseline:
 1. `./scripts/dev_setup.sh`
@@ -22,7 +29,14 @@ Use `taskset` commands to run experiments with different threads number. Set par
 5. `cd ../diem-transaction-benchmarks/benches`
 6. `cargo bench peer_to_peer`
 
-Set parameters in `diem-move/diem-transaction-benchmarks/src/transactions.rs`.
+Set parameters (number of accounts/transactions) in `diem-move/diem-transaction-benchmarks/src/transactions.rs`.
+
+    /// The number of accounts created by default.
+    pub const DEFAULT_NUM_ACCOUNTS: usize = 100;
+
+    /// The number of transactions created by default.
+    pub const DEFAULT_NUM_TRANSACTIONS: usize = 1000;
+    
 
 ---
 
