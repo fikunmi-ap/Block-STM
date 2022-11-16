@@ -8,14 +8,26 @@ The implementation of Block-STM has been merged on the main branch of the Diem b
 2. `cd aptos-move/aptos-transaction-benchmarks/src`
 3. `cargo run --release main`
 
-Use `taskset` commands to run experiments with different threads number. Set parameters in `aptos-move/aptos-transaction-benchmarks/src/main.rs`.
+Use `taskset` commands to run experiments with different threads number. Set parameters (number of accounts/transactions/warmup-runs/runs) in `aptos-move/aptos-transaction-benchmarks/src/main.rs`.
+
+    let acts = [2, 10, 100, 1000, 10000];
+    let txns = [1000, 10000];
+    let num_warmups = 2;
+    let num_runs = 10;
 
 ## Run sequential baseline with Aptos peer-to-peer transactions:
 1. `./scripts/dev_setup.sh`
 2. `cd aptos-move/aptos-transaction-benchmarks/benches`
 3. `cargo bench peer_to_peer`
 
-Set parameters in `aptos-move/aptos-transaction-benchmarks/src/transactions.rs`.
+Set parameters (number of accounts/transactions) in `aptos-move/aptos-transaction-benchmarks/src/transactions.rs`.
+
+    /// The number of accounts created by default.
+    pub const DEFAULT_NUM_ACCOUNTS: usize = 100;
+
+    /// The number of transactions created by default.
+    pub const DEFAULT_NUM_TRANSACTIONS: usize = 1000;
+    
 
 ---
 
