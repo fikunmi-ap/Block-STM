@@ -3,8 +3,8 @@
 This repository implements and benchmarks **Block-STM** and other baselines for the paper [Block-STM: Scaling Blockchain Execution by Turning Ordering Curse to a Performance Blessing](https://arxiv.org/abs/2203.06871).
 The implementation of Block-STM has been merged on the main branch of the Diem blockchain open source code-base, see [PR](https://github.com/diem/diem/pull/10173).
 
-Branches `block_stm` and `aptos` implement and benchmark Block-STM with Diem peer-to-peer transactions and Aptos peer-to-peer transactions, repectively.
-Similarly, branches `bohm` and `litm` implement and benchmark Bohm and LiTM with Diem peer-to-peer transactions, repectively.
+Branches `block_stm` and `aptos` implement and benchmark Block-STM with Diem peer-to-peer transactions and Aptos peer-to-peer transactions, respectively.
+Similarly, branches `bohm` and `litm` implement and benchmark Bohm and LiTM with Diem peer-to-peer transactions, respectively.
 
 ## Run Block-STM:
 1. `./scripts/dev_setup.sh`
