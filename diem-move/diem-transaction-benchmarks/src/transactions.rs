@@ -121,21 +121,21 @@ where
             );
 
             if i < num_warmups {
-                // println!("WARMUP - ignore reults");
+                println!("WARMUP - ignore results");
                 state.execute();
             } else {
-                // println!(
-                //     "RUN bencher for: num_threads = {}, \
-                //           block_size = {}, \
-                //           num_account = {}, \
-                //           write_rate = {:?}, \
-                //           read_rate = {:?}",
-                //     num_cpus::get(),
-                //     num_txn,
-                //     num_accounts,
-                //     write_keep_rate,
-                //     read_keep_rate,
-                // );
+                println!(
+                    "RUN bencher for: num_threads = {}, \
+                          block_size = {}, \
+                          num_account = {}, \
+                          write_rate = {:?}, \
+                          read_rate = {:?}",
+                    num_cpus::get(),
+                    num_txn,
+                    num_accounts,
+                    write_keep_rate,
+                    read_keep_rate,
+                );
                 ret.push(state.execute());
             }
         }
