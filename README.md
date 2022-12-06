@@ -8,10 +8,8 @@ Similarly, branches `bohm` and `litm` implement and benchmark Bohm and LiTM with
 
 ## Run Block-STM:
 1. `./scripts/dev_setup.sh`
-2. `cd diem-move/diem-framework`
-3. `cargo run`
-5. `cd ../diem-transaction-benchmarks/src`
-6. `cargo run --release main`
+2. `cd diem-move/diem-transaction-benchmarks/src`
+3. `cargo run --release main`
 
 Use `taskset` commands to run experiments with different threads number. 
 
@@ -24,10 +22,8 @@ Set parameters (number of accounts/transactions/warmup-runs/runs) in `diem-move/
 
 ## Run sequential baseline:
 1. `./scripts/dev_setup.sh`
-2. `cd diem-move/diem-framework`
-3. `cargo run`
-5. `cd ../diem-transaction-benchmarks/benches`
-6. `cargo bench peer_to_peer`
+2. `cd diem-move/diem-transaction-benchmarks/benches`
+3. `cargo bench peer_to_peer`
 
 Set parameters (number of accounts/transactions) in `diem-move/diem-transaction-benchmarks/src/transactions.rs`.
 
