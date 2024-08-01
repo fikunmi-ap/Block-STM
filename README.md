@@ -13,6 +13,9 @@ Similarly, branches `bohm` and `litm` implement and benchmark Bohm and LiTM with
 
 Use `taskset` commands to run experiments with different threads number. 
 
+If you run the benchmark on M1, there may be error `error: failed to run custom build command for librocksdb-sys v6.20.3`.
+This [solution](https://stackoverflow.com/questions/74978350/failed-to-run-custom-build-command-for-librocksdb-sys) should resolve the issue by downgrading to clang 14. 
+
 Set parameters (number of accounts/transactions/warmup-runs/runs) in `diem-move/diem-transaction-benchmarks/src/main.rs`.
 
     let acts = [2, 10, 100, 1000, 10000];
