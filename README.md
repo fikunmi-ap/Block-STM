@@ -5,11 +5,14 @@ The implementation of Block-STM has been merged on the main branch of the Diem b
 
 Branches `block_stm` and `aptos` implement and benchmark Block-STM with Diem peer-to-peer transactions and Aptos peer-to-peer transactions, respectively.
 Similarly, branches `bohm` and `litm` implement and benchmark Bohm and LiTM with Diem peer-to-peer transactions, respectively.
+After running Block-STM, you can checkout to these branches and run them following similar steps as below. 
 
 ## Run Block-STM:
 1. `./scripts/dev_setup.sh`
-2. `cd diem-move/diem-transaction-benchmarks/src`
-3. `cargo run --release main`
+2. `curl https://sh.rustup.rs -sSf | sh`
+3. Restart the shell if necessary
+4. `cd diem-move/diem-transaction-benchmarks/src`
+5. `cargo run --release main`
 
 Use `taskset` commands to run experiments with different threads number. 
 
