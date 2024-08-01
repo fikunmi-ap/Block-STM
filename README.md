@@ -5,10 +5,17 @@ The implementation of Block-STM has been merged on the main branch of the Diem b
 
 ## Run Block-STM with Aptos peer-to-peer transactions:
 1. `./scripts/dev_setup.sh`
-2. `cd aptos-move/aptos-transaction-benchmarks/src`
-3. `cargo run --release main`
+2. `curl https://sh.rustup.rs -sSf | sh`
+3. Restart the shell if necessary
+3. `cd aptos-move/aptos-transaction-benchmarks/src`
+4. `cargo run --release main`
 
-Use `taskset` commands to run experiments with different threads number. Set parameters (number of accounts/transactions/warmup-runs/runs) in `aptos-move/aptos-transaction-benchmarks/src/main.rs`.
+Use `taskset` commands to run experiments with different threads number. 
+
+If you run the benchmark on M1, there may be error `error: failed to run custom build command for librocksdb-sys v6.20.3`.
+This [solution](https://stackoverflow.com/questions/74978350/failed-to-run-custom-build-command-for-librocksdb-sys) should resolve the issue by downgrading to clang 14. 
+
+Set parameters (number of accounts/transactions/warmup-runs/runs) in `aptos-move/aptos-transaction-benchmarks/src/main.rs`.
 
     let acts = [2, 10, 100, 1000, 10000];
     let txns = [1000, 10000];
