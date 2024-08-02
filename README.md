@@ -16,6 +16,8 @@ After running Block-STM, you can checkout to these branches and run them followi
 
 Use `taskset` commands to run experiments with different threads number. 
 
+If you run the benchmark on Ubuntu, please use Ubuntu 20.04.
+
 If you run the benchmark on M1, there may be error `error: failed to run custom build command for librocksdb-sys v6.20.3`.
 This [solution](https://stackoverflow.com/questions/74978350/failed-to-run-custom-build-command-for-librocksdb-sys) should resolve the issue by downgrading to clang 14. 
 
