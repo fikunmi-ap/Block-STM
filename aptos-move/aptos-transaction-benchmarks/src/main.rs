@@ -6,8 +6,8 @@ use proptest::prelude::*;
 fn main() {
     let bencher = TransactionBencher::new(any_with::<P2PTransferGen>((1_000, 1_000_000)));
 
-    let acts = [2, 10, 100, 1000, 10000];
-    let txns = [1000, 10000];
+    let acts = [2, 10, 20, 30, 50, 80, 100, 1000, 10000];
+    let txns = [1000, 10000, 30000];
     let num_warmups = 2;
     let num_runs = 10;
 
